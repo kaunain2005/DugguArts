@@ -6,9 +6,12 @@ import { usePathname } from "next/navigation";
 import { Menu, X, ShoppingBag, Flower2, User, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlowerThemeToggle, ThemeSwitcherDropdown } from "@/components/theme/ThemeSwitcher";
-import { Button } from "@/components/ui/Button";
+import { useTheme } from "@/context/ThemeContext";
 import { useCart } from "@/context/CartContext";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+
+type Theme = "white" | "dark" | "pink";
+const THEME_ORDER: Theme[] = ["white", "dark", "pink"];
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -135,7 +138,7 @@ export function Navbar() {
           id="mobile-menu"
           className={cn(
             "lg:hidden overflow-hidden transition-all duration-300 ease-in-out",
-            isMobileMenuOpen ? "max-h-96 opacity-100 pb-4" : "max-h-0 opacity-0"
+            isMobileMenuOpen ? "max-h-96 opacity-100 pb-4 bg-background" : "max-h-0 opacity-0"
           )}
           role="navigation"
           aria-label="Mobile navigation"
