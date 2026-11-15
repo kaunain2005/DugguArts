@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none" role="img" aria-label="Daisies Category">
+  <rect width="400" height="300" fill="#FFF0F4"/>
+  <path d="M200 50c0-30 40-50 80-30s80 50 60 90c-20 40-60 40-60 90s40 50 80 50c40 0 60-40 40-90C300 100 200 50 200 50z" fill="#FBBF24" opacity="0.3"/>
+  <path d="M200 120c-20 0-30 15-20 35s25 25 45 15c20-10 20-30 0-40z" fill="#FBBF24" opacity="0.5"/>
+  <path d="M210 160c-12 0-18 8-15 18s10 15 22 8c12-7 15-18 0-25z" fill="#FBBF24" opacity="0.7"/>
+  <circle cx="200" cy="190" r="20" fill="#FBBF24"/>
+  <ellipse cx="170" cy="180" rx="8" ry="14" fill="#FBBF24" opacity="0.6"/>
+  <ellipse cx="230" cy="180" rx="8" ry="14" fill="#FBBF24" opacity="0.6"/>
+  <path d="M200 250c0 20-30 40-50 30s-40-30-20-50c20-20 50-10 50 20z" fill="#FBBF24" opacity="0.4"/>
+  <text x="200" y="280" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#FBBF24" font-weight="600">Daisies</text>
+  <text x="200" y="295" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" fill="#CA8A04">10 Products</text>
+</svg>

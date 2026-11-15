@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" role="img" aria-label="Classic Red Rose - Handmade pipe cleaner flower">
+  <rect width="400" height="400" fill="#FFF0F4"/>
+  <path d="M200 50c0-30 40-50 80-30s80 50 60 90c-20 40-60 40-60 90s40 50 80 50c40 0 60-40 40-90C300 100 200 50 200 50z" fill="#DC2626" opacity="0.3"/>
+  <path d="M200 120c-20 0-30 15-20 35s25 25 45 15c20-10 20-30 0-40z" fill="#DC2626" opacity="0.5"/>
+  <path d="M200 150c-15 0-25 10-20 25s20 20 35 10c15-10 15-25 0-30z" fill="#DC2626" opacity="0.7"/>
+  <circle cx="200" cy="190" r="20" fill="#991B1B"/>
+  <ellipse cx="170" cy="180" rx="8" ry="12" fill="#DC2626" opacity="0.6"/>
+  <ellipse cx="230" cy="180" rx="8" ry="12" fill="#DC2626" opacity="0.6"/>
+  <path d="M200 250c0 20-30 40-50 30s-40-30-20-50c20-20 50-10 50 20z" fill="#991B1B" opacity="0.4"/>
+  <text x="200" y="370" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#991B1B" font-weight="600">Red Rose</text>
+  <text x="200" y="390" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#991B1B">Handmade Pipe Cleaner Flower</text>
+</svg>

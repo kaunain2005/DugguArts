@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Duggu Arts">
+  <rect width="512" height="512" fill="#D98FA4" rx="96"/>
+  <path d="M256 128C256 128 208 152 208 200C208 248 256 320 256 320C256 320 304 248 304 200C304 152 256 128 256 128Z" fill="#FFFFFF" opacity="0.9"/>
+  <circle cx="256" cy="200" r="48" fill="#D98FA4"/>
+  <text x="256" y="460" text-anchor="middle" font-family="Georgia, serif" font-size="24" fill="#FFFFFF" font-weight="600">Duggu Arts</text>
+</svg>

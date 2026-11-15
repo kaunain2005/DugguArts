@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" role="img" aria-label="Red Rose - Side View">
+  <rect width="400" height="400" fill="#FFF0F4"/>
+  <path d="M200 60c0-25 35-40 65-25s55 35 45 60c-10 25-35 35-50 50c-15 15-25 30-20 45s25 20 35 15c15-10 20-25 5-35z" fill="#DC2626" opacity="0.3"/>
+  <path d="M220 160c-10 0-15 10-10 20s15 15 25 10c10-5 15-15 0-20z" fill="#DC2626" opacity="0.6"/>
+  <path d="M210 190c-12 0-18 8-15 18s12 15 22 10c10-7 12-18 0-25z" fill="#DC2626" opacity="0.7"/>
+  <circle cx="200" cy="210" r="18" fill="#991B1B"/>
+  <ellipse cx="175" cy="200" rx="7" ry="10" fill="#DC2626" opacity="0.6"/>
+  <ellipse cx="225" cy="200" rx="7" ry="10" fill="#DC2626" opacity="0.6"/>
+  <path d="M180 270c0 15-25 25-35 15s-25-20-15-30c10-10 30-5 35 10z" fill="#991B1B" opacity="0.4"/>
+  <text x="200" y="360" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#991B1B" font-weight="600">Red Rose</text>
+  <text x="200" y="375" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#991B1B">Side View - Handmade</text>
+</svg>

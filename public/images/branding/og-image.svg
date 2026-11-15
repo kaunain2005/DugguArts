@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none" role="img" aria-label="Duggu Arts - Handmade Pipe Cleaner Flowers">
+  <rect width="1200" height="630" fill="#FFF0F4"/>
+  <!-- Decorative background flowers -->
+  <g fill="#E9A8B8" fill-opacity="0.15">
+    <circle cx="150" cy="150" r="80"/>
+    <circle cx="1050" cy="480" r="60"/>
+    <circle cx="200" cy="500" r="40"/>
+    <circle cx="1000" cy="100" r="50"/>
+  </g>
+  <g fill="#D783A0" fill-opacity="0.2">
+    <ellipse cx="300" cy="200" rx="90" ry="40" transform="rotate(-30 300 200)"/>
+    <ellipse cx="900" cy="400" rx="70" ry="35" transform="rotate(45 900 400)"/>
+  </g>
+  <!-- Center flower -->
+  <g transform="translate(600, 315)">
+    <circle r="80" fill="#F4C6D2"/>
+    <circle r="50" fill="#E9A8B8"/>
+    <circle r="25" fill="#D783A0"/>
+  </g>
+  <!-- Decorative elements -->
+  <g fill="#E9A8B8" fill-opacity="0.15">
+    <circle cx="150" cy="150" r="80"/>
+    <circle cx="1050" cy="480" r="60"/>
+    <circle cx="200" cy="500" r="40"/>
+    <circle cx="1000" cy="100" r="50"/>
+  </g>
+  <text x="600" y="480" text-anchor="middle" font-family="Georgia, serif" font-size="48" fill="#D783A0" font-weight="600">Duggu Arts</text>
+  <text x="600" y="530" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#87777D">Handmade Pipe Cleaner Flowers</text>
+  <text x="600" y="565" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" fill="#87777D">Beautiful • Handmade • Lasting Forever</text>
+</svg>

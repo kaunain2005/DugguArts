@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" role="img" aria-label="Sunshine Daisy">
+  <rect width="400" height="400" fill="#FFF0F4"/>
+  <path d="M200 80c0-25 35-40 65-25s55 35 45 60c-10 25-35 35-50 50c-15 15-25 30-20 45s25 20 35 15c15-10 20-25 5-35z" fill="#FBBF24" opacity="0.3"/>
+  <path d="M200 140c-15 0-20 15-15 25s20 20 35 10c15-10 20-25 5-25z" fill="#FBBF24" opacity="0.5"/>
+  <path d="M220 140c-12 0-18 8-15 18s10 15 22 8c12-7 15-18 0-25z" fill="#FBBF24" opacity="0.7"/>
+  <circle cx="200" cy="160" r="22" fill="#FDE047"/>
+  <ellipse cx="170" cy="140" rx="8" ry="14" fill="#FBBF24" opacity="0.6"/>
+  <ellipse cx="230" cy="140" rx="8" ry="14" fill="#FBBF24" opacity="0.6"/>
+  <circle cx="200" cy="160" r="10" fill="#FDE047"/>
+  <path d="M170 280c0 20-35 35-55 20s-35-30-20-45c15-15 40-15 50 0z" fill="#FBBF24" opacity="0.4"/>
+  <text x="200" y="360" text-anchor="middle" font-family="Georgia, serif" font-size="16" fill="#CA8A04" font-weight="600">Sunshine Daisy</text>
+  <text x="200" y="375" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#CA8A04">Handmade Pipe Cleaner Flower</text>
+</svg>
