@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Customers Handler
  * 
  * Handles customer-related operations
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const CustomersHandler = {

@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Dashboard Handler
  * 
  * Handles admin dashboard summary statistics
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const DashboardHandler = {

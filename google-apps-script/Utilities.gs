@@ -1,145 +1,12 @@
 /**
  * Duggu Arts - Google Apps Script Utilities
  * 
- * Common utility functions used across handlers
+ * Additional utility functions that are not in Config.gs
+ * These are specific to the Utilities module
  */
 
-/**
- * Get spreadsheet instance
- */
-function getSpreadsheet() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
-}
-
-/**
- * Get a specific sheet by name, create if not exists
- */
-function getSheet(sheetName) {
-  const ss = getSpreadsheet();
-  let sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    // Initialize headers if new sheet
-    const headers = SHEET_HEADERS[sheetName.toUpperCase().replace(/_/g, '_')];
-    if (headers) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.setFrozenRows(1);
-      // Format header row
-      sheet.getRange(1, 1, 1, headers.length)
-        .setFontWeight('bold')
-        .setBackground('#f3f4f6')
-        .setHorizontalAlignment('center');
-    }
-  }
-  return sheet;
-}
-
-/**
- * Generate a unique ID with prefix
- */
-function generateId(prefix = '') {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 9);
-  return `${prefix}${prefix ? '_' : ''}${timestamp}${random}`.toUpperCase();
-}
-
-/**
- * Get current timestamp in ISO format
- */
-function getCurrentTimestamp() {
-  return new Date().toISOString();
-}
-
-/**
- * Log audit event
- */
-function logAudit(adminEmail, action, entityType, entityId, details = {}) {
-  try {
-    const sheet = getSheet(SHEET_NAMES.AUDIT_LOGS);
-    const row = [
-      generateId('LOG'),
-      adminEmail || 'system',
-      action,
-      entityType,
-      entityId,
-      JSON.stringify(details),
-      getCurrentTimestamp()
-    ];
-    sheet.appendRow(row);
-  } catch (error) {
-    console.error('Audit log failed:', error);
-  }
-}
-
-/**
- * Create standardized success response
- */
-function createSuccessResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify({
-    success: true,
-    data: data,
-    message: 'Operation successful'
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-/**
- * Create standardized error response
- */
-function createErrorResponse(code, message) {
-  return ContentService.createTextOutput(JSON.stringify({
-    success: false,
-    error: { code, message }
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-/**
- * Handle CORS preflight
- */
-function handleCors(e) {
-  const origin = e.headers?.origin || '';
-  const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o)) || origin.includes('localhost');
-  
-  const headers = {
-    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Secret, X-Request-ID',
-    'Access-Control-Max-Age': '86400'
-  };
-  
-  return headers;
-}
-
-/**
- * Validate API secret from request
- */
-function validateApiSecret(requestSecret) {
-  return requestSecret === API_SECRET;
-}
-
-/**
- * Execute a function with a lock to prevent race conditions
- */
-function withLock(lockName, callback, timeoutMs = 30000) {
-  const lock = LockService.getScriptLock();
-  const acquired = lock.tryLock(timeoutMs);
-  
-  if (!acquired) {
-    throw new Error('Could not acquire lock - another operation in progress');
-  }
-  
-  try {
-    return callback();
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * Execute with spreadsheet lock (for sheet-level operations)
- */
-function withSpreadsheetLock(callback, timeoutMs = 30000) {
-  return withLock('spreadsheet_write', callback, timeoutMs);
-}
+const IDEMPOTENCY_STORE = 'idempotency_store';
+const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 
 /**
  * Check and store idempotency key
@@ -178,7 +45,7 @@ function processFormResponses(requestId) {
   }
   
   const formHeaders = formData[0];
-  const formRows = formData.slice(1);
+  const formRows = data.slice(1);
   
   // Get existing review IDs to avoid duplicates
   const reviewsData = reviewsSheet.getDataRange().getValues();

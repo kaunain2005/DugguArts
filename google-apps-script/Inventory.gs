@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Inventory Handler
  * 
  * Handles inventory and material management operations
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const InventoryHandler = {
@@ -119,7 +120,7 @@ const InventoryHandler = {
       currentStock: Number(m.current_stock) || 0,
       unitCost: Number(m.unit_cost) || 0,
       reorderLevel: Number(m.reorder_level) || 0,
-      updatedAt: m.updated_at,
+      updatedAt: m.update_at,
       isLowStock: Number(m.current_stock) <= Number(m.reorder_level),
       stockValue: (Number(m.current_stock) || 0) * (Number(m.unit_cost) || 0),
     };
@@ -354,7 +355,7 @@ const InventoryHandler = {
     
     return { items, total, page: pageNum, pageSize: sizeNum, totalPages };
   },
-
+  
   /**
    * Delete material (admin) - soft delete by marking as inactive
    */

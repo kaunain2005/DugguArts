@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
@@ -7,14 +8,14 @@ import { useEffect } from "react";
 export function useAdminAuth() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const pathname = usePathname();
 
   const isLoading = status === "loading";
-  const isAuthenticated = status === "authenticated" && !!session?.user?.email;
-  const user = session?.user;
+  const isAuthenticated =
+    status === "authenticated" && !!session?.user?.email;
 
-  // Check if user email is in admin allowlist
-  const isAdmin = user?.email ? isAdminEmail(user.email) : false;
+  const user = session?.user;
+  // Use type assertion since User type doesn't include isAdmin by default
+  const isAdmin = (user as { isAdmin?: boolean } | undefined)?.isAdmin ?? false;
 
   return {
     session,
@@ -22,31 +23,67 @@ export function useAdminAuth() {
     isLoading,
     isAuthenticated,
     isAdmin,
-    signIn: () => signIn("google", { callbackUrl: "/admin" }),
-    signOut: () => signOut({ callbackUrl: "/admin-login" }),
+
+    // Same Google login for customers and admins.
+    signIn: () => signIn("google", { callbackUrl: "/" }),
+
+    signOut: () => signOut({ callbackUrl: "/" }),
   };
 }
 
-export function useAdminGuard(redirectTo = "/admin-login") {
+export function useAdminGuard(redirectTo = "/login") {
   const { isLoading, isAuthenticated, isAdmin } = useAdminAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!isAuthenticated || !isAdmin) {
-        router.push(`${redirectTo}?callbackUrl=${encodeURIComponent(pathname)}`);
-      }
+    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+      router.replace(
+        `${redirectTo}?callbackUrl=${encodeURIComponent(pathname)}`
+      );
     }
-  }, [isLoading, isAuthenticated, isAdmin, router, pathname, redirectTo]);
+  }, [
+    isLoading,
+    isAuthenticated,
+    isAdmin,
+    router,
+    pathname,
+    redirectTo,
+  ]);
 
-  return { isLoading, isAuthenticated, isAdmin };
+  return {
+    isLoading,
+    isAuthenticated,
+    isAdmin,
+  };
 }
 
-// Helper to check admin email on client
-function isAdminEmail(email: string): boolean {
-  // This should match the server-side logic
-  // In production, this would come from an API or env var exposed to client
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
-  return adminEmails.length === 0 || adminEmails.includes(email.toLowerCase());
+export function useAuth() {
+  const { data: session, status } = useSession();
+
+  const isLoading = status === "loading";
+  const isAuthenticated =
+    status === "authenticated" && !!session?.user?.email;
+
+  const user = session?.user;
+  // Use type assertion since User type doesn't include isAdmin by default
+  const isAdmin = (user as { isAdmin?: boolean } | undefined)?.isAdmin ?? false;
+
+  const handleSignIn = (callbackUrl = "/") => {
+    return signIn("google", { callbackUrl });
+  };
+
+  const handleSignOut = (callbackUrl = "/") => {
+    return signOut({ callbackUrl });
+  };
+
+  return {
+    session,
+    user,
+    isLoading,
+    isAuthenticated,
+    isAdmin,
+    signIn: handleSignIn,
+    signOut: handleSignOut,
+  };
 }

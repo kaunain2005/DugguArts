@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Products Handler
  * 
  * Handles all product-related operations: CRUD, listing, filtering, etc.
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const ProductsHandler = {
@@ -403,7 +404,7 @@ const ProductsHandler = {
             updated++;
             break;
           }
-        }
+        });
       });
       
       logAudit('system', 'products_bulk_stock_update', 'product', 'multiple', { count: updated });

@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Reviews Handler
  * 
  * Handles customer review operations
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const ReviewsHandler = {

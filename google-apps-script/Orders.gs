@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Orders Handler
  * 
  * Handles all order-related operations: create, update, list, etc.
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const OrdersHandler = {
@@ -76,7 +77,7 @@ const OrdersHandler = {
       const customerId = generateId('CUST');
       
       // Create or find customer
-      let customer = findOrCreateCustomer(payload);
+      const customer = findOrCreateCustomer(payload);
       
       // Insert order
       const orderSheet = getSheet(SHEET_NAMES.ORDERS);

@@ -4,6 +4,7 @@ import React, { ReactNode } from "react";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { CartProvider } from "@/context/CartContext";
 import { ToastProvider, useToast } from "@/context/ToastContext";
+import { SessionProvider } from "next-auth/react";
 
 function CartProviderWrapper({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
@@ -16,12 +17,14 @@ function CartProviderWrapper({ children }: { children: ReactNode }) {
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <CartProviderWrapper>
-          {children}
-        </CartProviderWrapper>
-      </ToastProvider>
-    </ThemeProvider>
+    <SessionProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <CartProviderWrapper>
+            {children}
+          </CartProviderWrapper>
+        </ToastProvider>
+      </ThemeProvider>
+    </SessionProvider>
   );
 }

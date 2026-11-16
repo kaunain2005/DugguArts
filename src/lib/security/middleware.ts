@@ -70,13 +70,13 @@ export function createSecurityMiddleware(options: SecurityMiddlewareOptions = {}
 
       // 3. Authentication check
       if (requireAuth || adminOnly) {
-        // This will be checked in individual routes via getServerSession
-        // But we can do a basic check here
-        const authHeader = request.headers.get('authorization');
-        const sessionCookie = request.cookies.get('next-auth.session-token') 
+        // Check for session cookie (Auth.js v5 uses different cookie names)
+        const sessionCookie = request.cookies.get('authjs.session-token') 
+          || request.cookies.get('authjs.callback-url')
+          || request.cookies.get('next-auth.session-token') 
           || request.cookies.get('__session');
         
-        if (!authHeader && !sessionCookie) {
+        if (!sessionCookie) {
           const response = createSecureErrorResponse({
             code: 'UNAUTHORIZED',
             message: 'Authentication required',
@@ -94,7 +94,7 @@ export function createSecurityMiddleware(options: SecurityMiddlewareOptions = {}
 
       // 4. Admin authorization check
       if (adminOnly) {
-        // This will be validated in the route handler via getServerSession
+        // This will be validated in the route handler via auth()
         // We just note it in context
         context.requiresAdmin = true;
       }

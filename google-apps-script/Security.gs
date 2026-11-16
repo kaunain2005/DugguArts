@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Security Module
  * 
  * Handles authentication, authorization, rate limiting, and input validation.
+ * Edge-compatible - no Node.js dependencies.
  */
 
 // =============================================================================
@@ -17,7 +18,7 @@ const RATE_LIMIT_MAX_REQUESTS = 60; // requests per window
  */
 function checkRateLimit(identifier) {
   const cache = CacheService.getScriptCache();
-  const key = `${RATE_LIMIT_STORE}_${identifier}`;
+  const key = `ratelimit_${identifier}`;
   
   let current = cache.get(key);
   let count = current ? parseInt(current, 10) : 0;
@@ -36,13 +37,11 @@ function checkRateLimit(identifier) {
  * Get client identifier from request
  */
 function getClientIdentifier(e) {
-  // Try to get IP from headers (when behind proxy)
   const forwarded = e.headers?.['x-forwarded-for'] || e.headers?.['X-Forwarded-For'];
   if (forwarded) {
     return forwarded.split(',')[0].trim();
   }
   
-  // Fallback to a hash of user agent + other factors
   const userAgent = e.headers?.['user-agent'] || e.headers?.['User-Agent'] || 'unknown';
   return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, userAgent).slice(0, 16);
 }
@@ -181,7 +180,7 @@ const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
  */
 function checkIdempotency(key) {
   const cache = CacheService.getScriptCache();
-  const fullKey = `${IDEMPOTENCY_STORE}_${key}`;
+  const fullKey = `idempotency_${key}`;
   
   const existing = cache.get(fullKey);
   if (existing) {
@@ -196,8 +195,8 @@ function checkIdempotency(key) {
  */
 function storeIdempotencyResult(key, result) {
   const cache = CacheService.getScriptCache();
-  const fullKey = `${IDEMPOTENCY_STORE}_${key}`;
-  cache.put(fullKey, JSON.stringify(result), IDEMPOTENCY_TTL_SECONDS);
+  const fullKey = `idempotency_${key}`;
+  cache.put(fullKey, JSON.stringify(result), 24 * 60 * 60); // 24 hours
 }
 
 // =============================================================================
@@ -205,27 +204,56 @@ function storeIdempotencyResult(key, result) {
 // =============================================================================
 
 /**
- * Verify admin email is in allowlist
- * In production, this should check against a stored list or domain
+ * Verify admin email is in allowlist from Script Properties
+ * Reads from ADMIN_EMAILS script property (comma-separated)
  */
 function isAuthorizedAdmin(email) {
   if (!email) return false;
   
-  // Check against allowed domains or specific emails
-  // For now, we'll allow any email - in production, implement proper allowlist
-  const allowedDomains = ['yourdomain.com']; // Configure as needed
-  const domain = email.split('@')[1]?.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
   
-  return allowedDomains.includes(domain) || email.endsWith('@yourdomain.com');
+  const adminEmails = (PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+  
+  // Never allow access if the admin allowlist is empty
+  if (!adminEmails.length) {
+    console.error('ADMIN_EMAILS is not configured');
+    return false;
+  }
+  
+  return adminEmails.includes(normalizedEmail);
 }
 
 /**
- * Get admin email from session/request
+ * Get admin email from validated session
+ * In production, this should come from a validated session token
+ * For security, DO NOT trust x-admin-email header from client
  */
-function getAdminEmail(e) {
-  // In a real implementation, this would come from a validated session
-  // For now, we'll check headers
-  return e.headers?.['x-admin-email'] || e.headers?.['X-Admin-Email'] || '';
+function getAdminEmailFromSession(session) {
+  // In a real implementation, this would come from a validated session token
+  // For security, we should NOT trust x-admin-email header from client
+  // This is a placeholder - implement proper session validation
+  return session?.user?.email || '';
+}
+
+/**
+ * Verify admin access for admin operations
+ * Should be called at the start of every admin handler
+ */
+function verifyAdminAccess(session) {
+  const email = getAdminEmailFromSession(session);
+  
+  if (!email) {
+    throw new Error('Authentication required');
+  }
+  
+  if (!isAuthorizedAdmin(email)) {
+    throw new Error('Not authorized to access admin panel');
+  }
+  
+  return email;
 }
 
 // =============================================================================
@@ -244,7 +272,7 @@ const VALIDATION_SCHEMAS = {
       image_url: { type: 'url', optional: true },
       gallery_urls: { type: 'array', optional: true },
       colours: { type: 'array', minItems: 1 },
-      stock_status: { type: 'enum', values: VALIDATION.PRODUCT_STATUSES },
+      stock_status: { type: 'enum', values: ['in_stock', 'low_stock', 'out_of_stock', 'made_to_order'] },
       featured: { type: 'boolean' },
       active: { type: 'boolean' }
     }
@@ -294,6 +322,42 @@ const VALIDATION_SCHEMAS = {
       review_text: { type: 'string', min: 20, max: 2000 },
       photo_url: { type: 'url', optional: true },
       display_permission: { type: 'boolean' }
+    }
+  },
+  
+  inventory: {
+    required: ['materialName', 'category', 'unit', 'openingStock', 'currentStock', 'unitCost', 'reorderLevel'],
+    fields: {
+      materialName: { type: 'string', min: 2, max: 100 },
+      category: { type: 'string', min: 1 },
+      unit: { type: 'string', min: 1 },
+      openingStock: { type: 'number', min: 0 },
+      currentStock: { type: 'number', min: 0 },
+      unitCost: { type: 'number', min: 0 },
+      reorderLevel: { type: 'number', min: 0 }
+    }
+  },
+  
+  inventory_movement: {
+    required: ['materialId', 'movementType', 'quantity'],
+    fields: {
+      materialId: { type: 'string', min: 1 },
+      movementType: { type: 'enum', values: ['in', 'out', 'adjustment'] },
+      quantity: { type: 'number', min: 1 },
+      referenceId: { type: 'string', optional: true },
+      notes: { type: 'string', optional: true, max: 500 }
+    }
+  },
+  
+  category: {
+    required: ['name', 'slug'],
+    fields: {
+      name: { type: 'string', min: 2, max: 100 },
+      slug: { type: 'string', pattern: '^[a-z0-9-]+$', max: 100 },
+      description: { type: 'string', max: 500, optional: true },
+      image_url: { type: 'url', optional: true },
+      active: { type: 'boolean', optional: true },
+      display_order: { type: 'number', min: 0, optional: true }
     }
   }
 };

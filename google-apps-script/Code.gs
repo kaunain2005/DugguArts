@@ -186,85 +186,43 @@ function routeAction(action, payload, requestId) {
 }
 
 // =============================================================================
-// ACTION HANDLERS (Stubs - implemented in separate files)
+// ACTION HANDLERS (Implemented in separate files)
 // =============================================================================
 
 function handleProductsAction(action, payload, requestId) {
-  // Implemented in Products.gs
   return ProductsHandler[action](payload, requestId);
 }
 
 function handleCategoriesAction(action, payload, requestId) {
-  // Implemented in Categories.gs
   return CategoriesHandler[action](payload, requestId);
 }
 
 function handleOrdersAction(action, payload, requestId) {
-  // Implemented in Orders.gs
   return OrdersHandler[action](payload, requestId);
 }
 
 function handleCustomersAction(action, payload, requestId) {
-  // Implemented in Customers.gs
   return CustomersHandler[action](payload, requestId);
 }
 
 function handleCustomRequestsAction(action, payload, requestId) {
-  // Implemented in CustomRequests.gs
   return CustomRequestsHandler[action](payload, requestId);
 }
 
 function handleReviewsAction(action, payload, requestId) {
-  // Implemented in Reviews.gs
   return ReviewsHandler[action](payload, requestId);
 }
 
 function handleInventoryAction(action, payload, requestId) {
-  // Implemented in Inventory.gs
   return InventoryHandler[action](payload, requestId);
 }
 
 function handleSettingsAction(action, payload, requestId) {
-  // Implemented in Settings.gs
   return SettingsHandler[action](payload, requestId);
 }
 
 function handleDashboardAction(action, payload, requestId) {
-  // Implemented in Dashboard.gs
   return DashboardHandler[action](payload, requestId);
-}
-
-// =============================================================================
-// UTILITY FUNCTIONS
-// =============================================================================
-
-function generateRequestId() {
-  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
-}
-
-function createSuccessResponse(data, headers) {
-  const output = ContentService.createTextOutput(JSON.stringify({
-    success: true,
-    data: data,
-    message: 'Operation successful'
-  })).setMimeType(ContentService.MimeType.JSON);
-  
-  if (headers) {
-    Object.entries(headers).forEach(([key, value]) => output.setHeaders({ [key]: value }));
-  }
-  return output;
-}
-
-function createErrorResponse(code, message, statusCode, headers) {
-  const output = ContentService.createTextOutput(JSON.stringify({
-    success: false,
-    error: { code, message }
-  })).setMimeType(ContentService.MimeType.JSON);
-  
-  if (headers) {
-    Object.entries(headers).forEach(([key, value]) => output.setHeaders({ [key]: value }));
-  }
-  return output;
 }
 
 // =============================================================================
@@ -276,7 +234,7 @@ function createErrorResponse(code, message, statusCode, headers) {
  * Run this once after creating the spreadsheet
  */
 function initializeSpreadsheet() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSpreadsheet();
   
   Object.entries(SHEET_NAMES).forEach(([key, sheetName]) => {
     let sheet = ss.getSheetByName(sheetName);
@@ -331,7 +289,7 @@ function initializeDefaultSettings() {
  * Test function to verify setup
  */
 function testSetup() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = getSpreadsheet();
   console.log('Spreadsheet:', ss.getName());
   console.log('Sheets:', ss.getSheets().map(s => s.getName()));
   console.log('API Secret configured:', !!PropertiesService.getScriptProperties().getProperty('API_SECRET'));

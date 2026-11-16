@@ -1,5 +1,4 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/config";
+import { auth } from "@/auth";
 import { appsScriptService, AdminOrdersResponse, AdminCustomRequest, AdminInventoryMaterial } from "@/services/apps-script.server";
 import { StatCard } from "@/components/admin/StatCard";
 import { RecentActivity } from "@/components/admin/RecentActivity";
@@ -7,7 +6,7 @@ import { LowStockAlert } from "@/components/admin/LowStockAlert";
 import { cn } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   // Fetch dashboard data
   const [products, orders, requests, reviews, inventory, customers] = await Promise.all([

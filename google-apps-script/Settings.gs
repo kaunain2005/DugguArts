@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Settings Handler
  * 
  * Handles application settings operations
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const SettingsHandler = {

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/config';
+import { auth } from '@/auth';
 import { appsScriptService } from '@/services/apps-script.server';
 import { productSchema } from '@/lib/validations';
 import { createSecureErrorResponse } from '@/lib/security';
 
 // Admin-only authorization check
 async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean; response?: NextResponse }> {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   if (!session?.user?.email) {
     return { 

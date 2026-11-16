@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Custom Requests Handler
  * 
  * Handles custom bouquet request operations
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const CustomRequestsHandler = {
@@ -140,7 +141,7 @@ const CustomRequestsHandler = {
         quotedPrice: r.quoted_price ? Number(r.quoted_price) : null,
         requestStatus: r.request_status,
         createdAt: r.created_at,
-        updatedAt: r.updated_at,
+        updatedAt: r.update_at,
       };
     });
     

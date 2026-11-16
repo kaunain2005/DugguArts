@@ -13,7 +13,7 @@
  * The ID of the Google Spreadsheet used as the database.
  * Found in the URL: https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
  */
-const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+const SPREADSHEET_ID = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || 'YOUR_SPREADSHEET_ID_HERE';
 
 /**
  * Sheet/tab names in the spreadsheet - MUST match exactly
@@ -102,11 +102,22 @@ const SHEET_HEADERS = {
  * Secret key for server-to-server authentication.
  * Must match GOOGLE_APPS_SCRIPT_SECRET in Vercel environment variables.
  * Generate with: Utilities.getUuid() or similar
+ * Store in Script Properties: PropertiesService.getScriptProperties().setProperty('API_SECRET', 'your-secret')
  */
-const API_SECRET = PropertiesService.getScriptProperties().getProperty('API_SECRET') || 'YOUR_API_SECRET_HERE';
+const API_SECRET = PropertiesService.getScriptProperties().getProperty('API_SECRET') || '';
 
 /**
- * Allowed origins for CORS (if needed)
+ * Admin email allowlist - comma-separated list of authorized admin emails.
+ * Only these emails can access admin operations.
+ * Configure in Script Properties: PropertiesService.getScriptProperties().setProperty('ADMIN_EMAILS', 'admin1@example.com,admin2@example.com')
+ */
+const ADMIN_EMAILS = (PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+
+/**
+ * Allowed origins for CORS
  */
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -119,7 +130,6 @@ const ALLOWED_ORIGINS = [
 // =============================================================================
 
 const APP_SETTINGS = {
-  // Default values for settings sheet
   DEFAULT_SETTINGS: {
     business_name: 'Duggu Arts',
     whatsapp_number: '91XXXXXXXXXX',
@@ -133,14 +143,11 @@ const APP_SETTINGS = {
     timezone: 'Asia/Kolkata'
   },
   
-  // Pagination
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
   
-  // Cache
   CACHE_DURATION_SECONDS: 60,
   
-  // Rate limiting (requests per minute per IP)
   RATE_LIMIT: 60
 };
 
@@ -176,7 +183,6 @@ function getSheet(sheetName) {
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
-    // Initialize headers if new sheet
     const headers = SHEET_HEADERS[sheetName.toUpperCase().replace(/_/g, '_')];
     if (headers) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -204,20 +210,39 @@ function getCurrentTimestamp() {
 
 /**
  * Validate API secret from request
+ * Compares against secret stored in Script Properties
  */
 function validateApiSecret(requestSecret) {
-  return requestSecret === API_SECRET;
+  return requestSecret && requestSecret === API_SECRET;
 }
 
 /**
- * Log audit event
+ * Check if email is in admin allowlist
+ * Reads from Script Properties ADMIN_EMAILS
+ */
+function isAdminEmail(email) {
+  if (!email) return false;
+  
+  const normalizedEmail = email.trim().toLowerCase();
+  
+  // Never allow access if the admin allowlist is empty
+  if (!ADMIN_EMAILS.length) {
+    console.error('ADMIN_EMAILS is not configured');
+    return false;
+  }
+  
+  return ADMIN_EMAILS.includes(normalizedEmail);
+}
+
+/**
+ * Log audit event to Audit_Logs sheet
  */
 function logAudit(adminEmail, action, entityType, entityId, details = {}) {
   try {
     const sheet = getSheet(SHEET_NAMES.AUDIT_LOGS);
     const row = [
       generateId('LOG'),
-      adminEmail,
+      adminEmail || 'system',
       action,
       entityType,
       entityId,
@@ -231,6 +256,29 @@ function logAudit(adminEmail, action, entityType, entityId, details = {}) {
 }
 
 /**
+ * Generate a unique ID with prefix
+ */
+function generateId(prefix = '') {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 9);
+  return `${prefix}${prefix ? '_' : ''}${timestamp}${random}`.toUpperCase();
+}
+
+/**
+ * Get current timestamp in ISO format
+ */
+function getCurrentTimestamp() {
+  return new Date().toISOString();
+}
+
+/**
+ * Validate API secret from request
+ */
+function validateApiSecret(requestSecret) {
+  return requestSecret && requestSecret === API_SECRET;
+}
+
+/**
  * Create standardized API response
  */
 function createResponse(success, data, message, errorCode) {
@@ -240,6 +288,58 @@ function createResponse(success, data, message, errorCode) {
   if (errorCode) response.error = { code: errorCode, message: message || 'An error occurred' };
   return ContentService.createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Create standardized success response with CORS headers
+ */
+function createSuccessResponse(data, headers) {
+  const output = ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    data: data,
+    message: 'Operation successful'
+  })).setMimeType(ContentService.MimeType.JSON);
+  
+  if (headers) {
+    Object.entries(headers).forEach(([key, value]) => output.setHeaders({ [key]: value }));
+  }
+  return output;
+}
+
+/**
+ * Create standardized error response with CORS headers
+ */
+function createErrorResponse(code, message, statusCode, headers) {
+  const output = ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    error: { code, message }
+  })).setMimeType(ContentService.MimeType.JSON);
+  
+  if (headers) {
+    Object.entries(headers).forEach(([key, value]) => output.setHeaders({ [key]: value }));
+  }
+  return output;
+}
+
+/**
+ * Create standardized success response
+ */
+function createSuccessResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    data: data,
+    message: 'Operation successful'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Create standardized error response
+ */
+function createErrorResponse(code, message) {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    error: { code, message }
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -260,4 +360,86 @@ function handleCors(request) {
     return ContentService.createTextOutput('').setHeaders(headers);
   }
   return headers;
+}
+
+/**
+ * Execute a function with a lock to prevent race conditions
+ */
+function withLock(lockName, callback, timeoutMs = 30000) {
+  const lock = LockService.getScriptLock();
+  const acquired = lock.tryLock(timeoutMs);
+  
+  if (!acquired) {
+    throw new Error('Could not acquire lock - another operation in progress');
+  }
+  
+  try {
+    return callback();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Execute with spreadsheet lock (for sheet-level operations)
+ */
+function withSpreadsheetLock(callback, timeoutMs = 30000) {
+  return withLock('spreadsheet_write', callback, timeoutMs);
+}
+
+/**
+ * Check and store idempotency key
+ */
+function checkIdempotency(key) {
+  const cache = CacheService.getScriptCache();
+  const fullKey = `idempotency_${key}`;
+  
+  const existing = cache.get(fullKey);
+  if (existing) {
+    return { isDuplicate: true, result: JSON.parse(existing) };
+  }
+  
+  return { isDuplicate: false };
+}
+
+/**
+ * Store idempotency result
+ */
+function storeIdempotencyResult(key, result) {
+  const cache = CacheService.getScriptCache();
+  const fullKey = `idempotency_${key}`;
+  cache.put(fullKey, JSON.stringify(result), 24 * 60 * 60); // 24 hours
+}
+
+/**
+ * Rate limiting check
+ */
+function checkRateLimit(identifier) {
+  const cache = CacheService.getScriptCache();
+  const key = `ratelimit_${identifier}`;
+  
+  let current = cache.get(key);
+  let count = current ? parseInt(current, 10) : 0;
+  
+  if (count >= 60) {
+    return { allowed: false, remaining: 0, resetTime: Date.now() + 60000 };
+  }
+  
+  count++;
+  cache.put(key, count.toString(), 60); // 1 minute window
+  
+  return { allowed: true, remaining: 60 - count, resetTime: Date.now() + 60000 };
+}
+
+/**
+ * Get client identifier from request
+ */
+function getClientIdentifier(e) {
+  const forwarded = e.headers?.['x-forwarded-for'] || e.headers?.['X-Forwarded-For'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  
+  const userAgent = e.headers?.['user-agent'] || e.headers?.['User-Agent'] || 'unknown';
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, userAgent).slice(0, 16);
 }

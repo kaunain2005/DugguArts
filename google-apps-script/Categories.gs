@@ -2,6 +2,7 @@
  * Duggu Arts - Google Apps Script Categories Handler
  * 
  * Handles all category-related operations: CRUD, listing, etc.
+ * Uses centralized utilities from Config.gs and Security.gs
  */
 
 const CategoriesHandler = {

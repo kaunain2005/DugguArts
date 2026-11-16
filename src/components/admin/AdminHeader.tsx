@@ -2,8 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { signOut, useSession } from "next-auth/react";
-import { User, LogOut, Bell, Menu, X, ChevronDown, BarChart2 } from "lucide-react";
+import { signOut } from "next-auth/react";
+import { User, LogOut, Bell, Menu, X, ChevronDown, BarChart2, Settings, LayoutDashboard, Package, ShoppingBag, MessageSquare, Users, Package2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -16,13 +16,12 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ user }: AdminHeaderProps) {
-  const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: "/admin-login" });
+    signOut({ callbackUrl: "/login" });
   };
 
   return (
@@ -106,6 +105,9 @@ export function AdminHeader({ user }: AdminHeaderProps) {
                   <div className="px-4 py-3 border-b border-border">
                     <p className="font-medium text-text">{user.name || "Admin"}</p>
                     <p className="text-xs text-text-muted">{user.email}</p>
+                    <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
+                      Admin
+                    </span>
                   </div>
                   <Link
                     href="/admin/settings"
@@ -117,7 +119,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
                   </Link>
                   <button
                     type="button"
-                    onClick={handleSignOut}
+                    onClick={() => signOut({ callbackUrl: "/login" })}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error/10 transition-colors"
                   >
                     <LogOut className="w-4 h-4" aria-hidden="true" />
@@ -218,7 +220,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
               <hr className="border-border my-2" />
               <button
                 type="button"
-                onClick={handleSignOut}
+                onClick={() => signOut({ callbackUrl: "/login" })}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-error hover:bg-error/10 rounded-lg transition-colors"
               >
                 <LogOut className="w-5 h-5" aria-hidden="true" />
@@ -231,6 +233,3 @@ export function AdminHeader({ user }: AdminHeaderProps) {
     </header>
   );
 }
-
-// Missing imports
-import { Settings, LayoutDashboard, Package, ShoppingBag, MessageSquare, Users, Package2 } from "lucide-react";

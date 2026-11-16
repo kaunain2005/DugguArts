@@ -1,22 +1,31 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/config";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminHeader } from "@/components/admin/AdminHeader";
+
+const adminEmails = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdminEmail(email: string): boolean {
+  if (!adminEmails.length) return false;
+  return adminEmails.includes(email.toLowerCase());
+}
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   // Double-check admin authorization (middleware handles auth, this handles admin role)
-  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
   const userEmail = session?.user?.email?.toLowerCase() || "";
 
   if (!session?.user?.email || (adminEmails.length > 0 && !adminEmails.includes(userEmail))) {
-    // This should not happen due to middleware, but safety check
-    return null;
+    // Redirect to home with error
+    redirect("/?error=unauthorized");
   }
 
   return (
