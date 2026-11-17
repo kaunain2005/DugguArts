@@ -85,7 +85,7 @@ const defaultTestimonials: Testimonial[] = [
 
 export function TestimonialsSection({
   testimonials = [],
-  title = "What Our Customers Say",
+  title = "Customer Love",
   description = "Real stories from happy customers who chose Duggu Arts",
   showViewAll = true,
   viewAllHref = "/reviews",

@@ -1,11 +1,13 @@
 const nextPlugin = require("@next/eslint-plugin-next");
 const reactPlugin = require("eslint-plugin-react");
 const reactHooksPlugin = require("eslint-plugin-react-hooks");
+const tseslint = require("typescript-eslint");
 
 module.exports = [
   {
     ignores: [".next/", "node_modules/", "out/", "build/", "*.config.js"],
   },
+  ...tseslint.configs.recommended,
   {
     plugins: {
       "@next/next": nextPlugin,

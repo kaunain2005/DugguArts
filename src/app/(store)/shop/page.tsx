@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types/product";
-import { CartContext } from "@/context/CartContext";
+import { useCart } from "@/context/CartContext";
 
 const SORT_OPTIONS = [
   { value: "featured", label: "Featured" },
@@ -211,7 +211,7 @@ export default function ShopPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeFiltersCount, setActiveFiltersCount] = useState(0);
 
-  const { addItem } = useContext(CartContext);
+  const { addItem } = useCart();
 
   const handleAddToCart = (product: Product) => {
     addItem(product);

@@ -16,7 +16,7 @@ export interface CartItem {
   messageCard?: string;
 }
 
-interface CartContextType {
+export interface CartContextType {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
@@ -36,7 +36,9 @@ interface CartProviderProps {
   onItemAdded?: (productName: string) => void;
 }
 
-// Default context value for when used outside provider (should not happen in practice)
+const CART_STORAGE_KEY = "duggu-arts-cart";
+
+// Default context value for when used outside provider
 const defaultCartContext: CartContextType = {
   items: [],
   itemCount: 0,
@@ -52,8 +54,7 @@ const defaultCartContext: CartContextType = {
   toggleCart: () => {},
 };
 
-export const CartContext = createContext<CartContextType>(defaultCartContext);
-const CART_STORAGE_KEY = "duggu-arts-cart";
+export const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children, onItemAdded }: CartProviderProps) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -63,7 +64,7 @@ export function CartProvider({ children, onItemAdded }: CartProviderProps) {
   // Load cart from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(CART_STORAGE_KEY);
+      const stored = localStorage.getItem("duggu-arts-cart");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -81,7 +82,7 @@ export function CartProvider({ children, onItemAdded }: CartProviderProps) {
   useEffect(() => {
     if (hydrated) {
       try {
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+        localStorage.setItem("duggu-arts-cart", JSON.stringify(items));
       } catch (error) {
         console.error("Failed to save cart to localStorage:", error);
       }
@@ -127,7 +128,8 @@ export function CartProvider({ children, onItemAdded }: CartProviderProps) {
 
       return [...prev, newItem];
     });
-    setIsCartOpen(true);
+    // Do NOT auto-open cart - use toast instead
+    // setIsCartOpen(true); // REMOVED: no longer auto-open cart
     // Notify that an item was added (for toast notifications)
     onItemAdded?.(product.name);
   }, [onItemAdded]);

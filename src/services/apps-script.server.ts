@@ -70,7 +70,38 @@ class AppsScriptService {
         throw new Error(`Backend service error: ${response.status}`);
       }
 
-      const result: ApiResponse<T> = await response.json();
+      // const result: ApiResponse<T> = await response.json();
+      const responseText = await response.text();
+      const bodyMatch = responseText.match(
+        /<body[^>]*>([\s\S]*?)<\/body>/i
+      );
+
+      const bodyText = (bodyMatch?.[1] ?? responseText)
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      console.log("Google HTML error text:", bodyText.substring(0, 2000));
+      // __________________________________________-
+      let result: ApiResponse<T>;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          "Apps Script returned HTML or invalid JSON. Check deployment URL, access permissions, and Apps Script execution errors."
+        );
+      }
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Operation failed");
+      }
+
+      return result.data as T;
 
       if (!result.success) {
         throw new Error(result.error?.message || 'Operation failed');
@@ -79,11 +110,11 @@ class AppsScriptService {
       return result.data as T;
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('Backend service timeout');
       }
-      
+
       throw error;
     }
   }

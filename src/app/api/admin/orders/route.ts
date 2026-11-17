@@ -34,7 +34,7 @@ async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean
 
 function createOptionsResponse() {
   const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
   response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
   response.headers.set('Access-Control-Allow-Credentials', 'true');
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
   response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
   response.headers.set('Access-Control-Allow-Credentials', 'true');

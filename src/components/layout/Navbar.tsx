@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
@@ -18,7 +18,7 @@ const THEME_ORDER: Theme[] = ["white", "dark", "pink"];
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/shop", label: "Shop" },
-  { href: "/custom-order", label: "Custom Bouquet" },
+  { href: "/custom-order", label: "Custom Orders" },
   { href: "/reviews", label: "Reviews" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
@@ -31,11 +31,11 @@ export function Navbar() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { itemCount, toggleCart } = useCart();
   const { data: session, status } = useSession();
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
   const user = session?.user;
-  // Use type assertion since User type doesn't include isAdmin by default
   const isAdmin = (user as { isAdmin?: boolean } | undefined)?.isAdmin ?? false;
 
   useEffect(() => {
@@ -53,6 +53,42 @@ export function Navbar() {
   useEffect(() => {
     setIsProfileOpen(false);
   }, [pathname]);
+
+  // Handle escape key for mobile menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMobileMenuOpen]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
+
+  // Focus management for mobile menu
+  useEffect(() => {
+    if (isMobileMenuOpen && mobileMenuRef.current) {
+      // Focus the first focusable element
+      const focusableElements = mobileMenuRef.current.querySelectorAll(
+        'a[href], button, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length > 0) {
+        (focusableElements[0] as HTMLElement).focus();
+      }
+    }
+  }, [isMobileMenuOpen]);
 
   const handleSignIn = () => {
     signIn("google", { callbackUrl: isAdmin ? "/admin/dashboard" : "/" });
@@ -76,6 +112,10 @@ export function Navbar() {
       return email.slice(0, 2).toUpperCase();
     }
     return "U";
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
   };
 
   return (
@@ -253,155 +293,185 @@ export function Navbar() {
             className="lg:hidden p-2 rounded-lg text-text hover:bg-surface transition-colors"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-expanded={isMobileMenuOpen}
-            aria-controls="mobile-menu"
+            aria-controls="mobile-menu-overlay"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           >
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
-
-        {/* Mobile Menu */}
-        <div
-          id="mobile-menu"
-          className={cn(
-            "lg:hidden overflow-hidden transition-all duration-300 ease-in-out",
-            isMobileMenuOpen ? "max-h-96 opacity-100 pb-4 bg-background" : "max-h-0 opacity-0"
-          )}
-          role="navigation"
-          aria-label="Mobile navigation"
-        >
-          <div className="flex flex-col gap-1 pt-4 border-t border-border">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "px-4 py-3 rounded-lg text-base font-medium transition-colors",
-                  pathname === link.href
-                    ? "bg-primary/10 text-primary"
-                    : "text-text hover:bg-surface"
-                )}
-                aria-current={pathname === link.href ? "page" : undefined}
-              >
-                {link.label}
-              </Link>
-            ))}
-            
-            {/* Mobile Profile/Auth */}
-            <div className="px-4 py-3 border-t border-border">
-              {isLoading ? (
-                <div className="h-12 bg-surface animate-pulse rounded-lg" />
-              ) : isAuthenticated ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 bg-surface rounded-lg">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                      {getInitials(user?.name, user?.email)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-text truncate">{user?.name || "User"}</p>
-                      <p className="text-xs text-text-muted truncate">{user?.email}</p>
-                    </div>
-                    {isAdmin && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
-                        Admin
-                      </span>
-                    )}
-                  </div>
-                  <Link
-                    href={isAdmin ? "/admin/dashboard" : "/account"}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-text hover:bg-surface transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <UserCog className="w-4 h-4" aria-hidden="true" />
-                    <span>{isAdmin ? "Admin Dashboard" : "My Account"}</span>
-                  </Link>
-                  <Link
-                    href="/orders"
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-text hover:bg-surface transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a2 2 0 00-2-2H6a2 2 0 00-2 2v7a2 2 0 002 2h8a2 2 0 002-2v-4" />
-                    </svg>
-                    <span>My Orders</span>
-                  </Link>
-                  <Link
-                    href="/wishlist"
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-text hover:bg-surface transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Heart className="w-4 h-4" aria-hidden="true" />
-                    <span>Wishlist</span>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-500/10 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" aria-hidden="true" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              ) : (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  onClick={handleSignIn}
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  <span>Sign In with Google</span>
-                </Button>
-              )}
-            </div>
-            
-            <div className="px-4 py-3 border-t border-border flex items-center justify-between">
-              <span className="text-sm font-medium text-text">Theme</span>
-              <ThemeSwitcherDropdown />
-            </div>
-
-            <div className="px-4 py-3 flex items-center gap-4">
-              <button
-                type="button"
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-surface text-text border border-border"
-              >
-                <Heart className="w-5 h-5" aria-hidden="true" />
-                <span>Wishlist</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleCart}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary text-white"
-              >
-                <ShoppingBag className="w-5 h-5" aria-hidden="true" />
-                <span>Cart</span>
-                {itemCount > 0 && (
-                  <span className="w-5 h-5 flex items-center justify-center text-xs font-bold bg-primary/80 text-white rounded-full">
-                    {itemCount > 99 ? "99+" : itemCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
       </nav>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in lg:hidden"
+            onClick={closeMobileMenu}
+            aria-hidden="true"
+          />
+          <div
+            ref={mobileMenuRef}
+            id="mobile-menu-overlay"
+            className="fixed inset-0 z-50 lg:hidden flex flex-col animate-slide-in-right bg-background"
+            role="navigation"
+            aria-label="Mobile navigation"
+          >
+            {/* Mobile Menu Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <Link
+                href="/"
+                className="flex items-center gap-2 text-xl font-heading font-bold text-text"
+                aria-label="Duggu Arts - Home"
+                onClick={closeMobileMenu}
+              >
+                <Flower2 className="w-7 h-7 text-primary" aria-hidden="true" />
+                <span>Duggu Arts</span>
+              </Link>
+              <button
+                type="button"
+                className="p-2 rounded-lg text-text hover:bg-surface transition-colors"
+                onClick={closeMobileMenu}
+                aria-label="Close menu"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Navigation Links */}
+            <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+              <ul className="space-y-1" role="list">
+                {navLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-4 rounded-xl text-lg font-medium transition-all duration-200",
+                        pathname === link.href
+                          ? "bg-primary/10 text-primary"
+                          : "text-text hover:bg-surface"
+                      )}
+                      aria-current={pathname === link.href ? "page" : undefined}
+                      onClick={closeMobileMenu}
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Divider */}
+              <hr className="my-4 border-border" />
+
+              {/* Mobile Profile/Auth */}
+              <div className="space-y-3">
+                {isLoading ? (
+                  <div className="h-20 bg-surface animate-pulse rounded-xl" />
+                ) : isAuthenticated ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-4 bg-surface rounded-xl">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-lg">
+                        {getInitials(user?.name, user?.email)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-text truncate">{user?.name || "User"}</p>
+                        <p className="text-xs text-text-muted truncate">{user?.email}</p>
+                      </div>
+                      {isAdmin && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      href={isAdmin ? "/admin/dashboard" : "/account"}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-base text-text hover:bg-surface transition-colors"
+                      onClick={closeMobileMenu}
+                    >
+                      <UserCog className="w-5 h-5" aria-hidden="true" />
+                      <span>{isAdmin ? "Admin Dashboard" : "My Account"}</span>
+                    </Link>
+                    <Link
+                      href="/orders"
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-base text-text hover:bg-surface transition-colors"
+                      onClick={closeMobileMenu}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a2 2 0 00-2-2H6a2 2 0 00-2 2v7a2 2 0 002 2h8a2 2 0 002-2v-4" />
+                      </svg>
+                      <span>My Orders</span>
+                    </Link>
+                    <Link
+                      href="/wishlist"
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-base text-text hover:bg-surface transition-colors"
+                      onClick={closeMobileMenu}
+                    >
+                      <Heart className="w-5 h-5" aria-hidden="true" />
+                      <span>Wishlist</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-base text-red-500 hover:bg-red-500/10 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" aria-hidden="true" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    className="w-full py-4"
+                    onClick={handleSignIn}
+                  >
+                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 1 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    <span>Sign In with Google</span>
+                  </Button>
+                )}
+              </div>
+
+              {/* Theme Selector in Mobile Menu */}
+              <div className="pt-4 border-t border-border">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-base font-medium text-text">Theme</span>
+                  <ThemeSwitcherDropdown />
+                </div>
+              </div>
+
+              {/* Mobile Actions - Wishlist & Cart */}
+              <div className="p-4 space-y-3 border-t border-border">
+                <button
+                  type="button"
+                  className="flex items-center justify-center gap-3 w-full px-4 py-4 rounded-xl bg-surface text-text border border-border"
+                  onClick={closeMobileMenu}
+                >
+                  <Heart className="w-6 h-6" aria-hidden="true" />
+                  <span>Wishlist</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { toggleCart(); closeMobileMenu(); }}
+                  className="flex items-center justify-center gap-3 w-full px-4 py-4 rounded-xl bg-primary text-white"
+                >
+                  <ShoppingBag className="w-6 h-6" aria-hidden="true" />
+                  <span>Cart</span>
+                  {itemCount > 0 && (
+                    <span className="w-6 h-6 flex items-center justify-center text-sm font-bold bg-primary/80 text-white rounded-full">
+                      {itemCount > 99 ? "99+" : itemCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </nav>
+          </div>
+        </>
+      )}
+
       <CartDrawer />
     </header>
   );

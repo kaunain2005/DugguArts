@@ -100,7 +100,7 @@ Copy `.env.example` to `.env.local` and fill in:
 
 ```bash
 # ─── Core ───
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+SITE_URL=http://localhost:3000
 
 # ─── Google OAuth (NextAuth) ───
 GOOGLE_CLIENT_ID=your-google-client-id
@@ -385,7 +385,7 @@ CMD ["npm", "start"]
 ```
 
 ### Environment Variables for Production
-- Update `NEXT_PUBLIC_SITE_URL` to your domain.
+- Update `SITE_URL` to your domain.
 - Update `NEXTAUTH_URL` to `https://your-domain.com`.
 - Add production Google OAuth redirect URI.
 - Ensure `GOOGLE_APPS_SCRIPT_URL` points to production Apps Script deployment.

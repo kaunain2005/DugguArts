@@ -1,7 +1,7 @@
 export const APP_CONFIG = {
   name: "Duggu Arts",
   description: "Handmade pipe-cleaner flowers crafted with love",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  url: process.env.SITE_URL || "http://localhost:3000",
   defaultTheme: "white" as const,
   themes: ["white", "dark", "pink"] as const,
 };

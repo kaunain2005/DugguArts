@@ -4,14 +4,29 @@ import React, { ReactNode } from "react";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { CartProvider } from "@/context/CartContext";
 import { ToastProvider, useToast } from "@/context/ToastContext";
+import { CartToastProvider, useCartToast } from "@/context/CartToastContext";
+import { CartToastContainer } from "@/components/cart/CartToast";
 import { SessionProvider } from "next-auth/react";
 
 function CartProviderWrapper({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
+  const { addToast: addCartToast } = useCartToast();
   return (
-    <CartProvider onItemAdded={(productName) => showToast("success", `${productName} added to cart`)}>
+    <CartProvider onItemAdded={(productName) => {
+      showToast("success", `${productName} added to cart`);
+      addCartToast(productName);
+    }}>
       {children}
     </CartProvider>
+  );
+}
+
+function CartToastProviderWrapper({ children }: { children: ReactNode }) {
+  return (
+    <CartToastProvider>
+      {children}
+      <CartToastContainer />
+    </CartToastProvider>
   );
 }
 
@@ -20,9 +35,11 @@ export function Providers({ children }: { children: ReactNode }) {
     <SessionProvider>
       <ThemeProvider>
         <ToastProvider>
-          <CartProviderWrapper>
-            {children}
-          </CartProviderWrapper>
+          <CartToastProviderWrapper>
+            <CartProviderWrapper>
+              {children}
+            </CartProviderWrapper>
+          </CartToastProviderWrapper>
         </ToastProvider>
       </ThemeProvider>
     </SessionProvider>

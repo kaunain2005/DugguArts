@@ -1,17 +1,19 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CategorySection } from "@/components/home/CategorySection";
+import { ShopByBloomSection } from "@/components/home/ShopByBloomSection";
 import { FeaturedProductsSection } from "@/components/home/FeaturedProductsSection";
 import { BestSellerSection } from "@/components/home/BestSellerSection";
-import { WhyHandmadeSection } from "@/components/home/WhyHandmadeSection";
+import { HappinessSection } from "@/components/home/HappinessSection";
 import { BrandStorySection } from "@/components/home/BrandStorySection";
-import { CustomBouquetCTA } from "@/components/home/CustomBouquetCTA";
+import { CuratedCollectionsSection } from "@/components/home/CuratedCollectionsSection";
+import { WhyChooseSection } from "@/components/home/WhyChooseSection";
 import { TestimonialsSection } from "@/components/home/TestimonialsSection";
+import { CustomOrdersCTA } from "@/components/home/CustomOrdersCTA";
+import { OccasionSection } from "@/components/home/OccasionSection";
 import { InstagramGallery } from "@/components/home/InstagramGallery";
 import { Button } from "@/components/ui/Button";
 import { useScrollReveal, useEntranceAnimation } from "@/hooks/useGSAP";
-// import { Flower2, Truck, RotateCcw, Gift, Sparkles, Heart, Leaf, Award, Quote } from "lucide-react";
 import { FlowerViewer } from "@/components/3d/FlowerViewer";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +44,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
+      {/* Hero Section - Keep exactly as is */}
       <section
         ref={heroRef}
         className="relative min-h-[85vh] flex items-center overflow-hidden"
@@ -118,7 +120,7 @@ export default function HomePage() {
             {/* Right Column - 3D Interactive Flower */}
             <div
               ref={heroFlowerRef}
-              className="lg:order-2 relative"
+              className="lg:order-2 relative hidden lg:block"
               aria-hidden="true"
             >
               <div className="relative aspect-square max-w-lg mx-auto lg:mx-0">
@@ -158,28 +160,34 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Why Handmade Section - Using Component */}
-      <WhyHandmadeSection />
+      {/* 1. Shop by Bloom */}
+      <ShopByBloomSection />
 
-      {/* Categories Section - Using Component */}
-      <CategorySection />
+      {/* 2. Our Bestselling Creations */}
+      <FeaturedProductsSection 
+        title="Our Bestselling Creations"
+        description="Customer favorites that bring joy to every home"
+      />
 
-      {/* Featured Products Section - Using Component */}
-      <FeaturedProductsSection />
+      {/* 3. Made for Every Occasion */}
+      <OccasionSection />
 
-      {/* Bestsellers Section - Using Component */}
-      <BestSellerSection />
+      {/* 4. Little Pieces of Happiness */}
+      <HappinessSection />
 
-      {/* Brand Story Section - Using Component */}
-      <BrandStorySection />
+      {/* 5. Curated Collections */}
+      <CuratedCollectionsSection />
 
-      {/* Custom Bouquet CTA - Using Component */}
-      <CustomBouquetCTA />
+      {/* 6. Why Choose Duggu Arts */}
+      <WhyChooseSection />
 
-      {/* Testimonials Section - Using Component */}
+      {/* 7. Customer Love */}
       <TestimonialsSection />
 
-      {/* Instagram Gallery - Using Component */}
+      {/* 8. Custom Orders CTA */}
+      <CustomOrdersCTA />
+
+      {/* 9. Instagram Gallery */}
       <InstagramGallery />
 
       {/* Newsletter Section */}

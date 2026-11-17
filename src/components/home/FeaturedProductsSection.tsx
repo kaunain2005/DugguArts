@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useContext } from "react";
+import React from "react";
 import Link from "next/link";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types/product";
-import { CartContext } from "@/context/CartContext";
+import { useCart } from "@/context/CartContext";
 
 interface FeaturedProductsSectionProps {
   products?: Product[];
@@ -101,7 +101,7 @@ export function FeaturedProductsSection({
   className,
 }: FeaturedProductsSectionProps) {
   const displayProducts = products.length > 0 ? products : defaultProducts;
-  const { addItem } = useContext(CartContext);
+  const { addItem } = useCart();
 
   const handleAddToCart = (product: Product) => {
     addItem(product);
