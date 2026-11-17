@@ -136,6 +136,29 @@ export default function AdminProductsPage() {
     fetchProducts(currentPage);
   }, [currentPage, searchQuery, categoryFilter, stockFilter, statusFilter]);
 
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showAddModal) {
+        setShowAddModal(false);
+        setEditingProduct(null);
+        resetForm();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showAddModal]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (showAddModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showAddModal]);
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -399,29 +422,6 @@ export default function AdminProductsPage() {
       </div>
     );
   }
-
-  // Close modal on Escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showAddModal) {
-        setShowAddModal(false);
-        setEditingProduct(null);
-        resetForm();
-      }
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [showAddModal]);
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (showAddModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [showAddModal]);
 
   return (
     <>

@@ -1,3 +1,4 @@
+// src/app/api/admin/products/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { appsScriptService } from '@/services/apps-script.server';
