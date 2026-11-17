@@ -76,6 +76,20 @@ const ReviewsHandler = {
   },
   
   /**
+   * List reviews - routes to listApproved or listAll based on approvedOnly parameter
+   * This is the main entry point for frontend calls
+   */
+  'reviews.list': function(payload, requestId) {
+    const { approvedOnly = true, ...params } = payload;
+    
+    if (approvedOnly) {
+      return ReviewsHandler['reviews.listApproved'](params, requestId);
+    } else {
+      return ReviewsHandler['reviews.listAll'](params, requestId);
+    }
+  },
+  
+  /**
    * List all reviews for admin moderation
    */
   'reviews.listAll': function(payload, requestId) {
@@ -84,6 +98,11 @@ const ReviewsHandler = {
       pageSize = APP_SETTINGS.DEFAULT_PAGE_SIZE,
       status = '',
       productId = '',
+      search = '',
+      approvalStatus = '',
+      featured = '',
+      sortBy = 'review_date',
+      sortOrder = 'desc',
     } = payload;
     
     const pageNum = Math.max(1, parseInt(page));
@@ -107,15 +126,53 @@ const ReviewsHandler = {
       return obj;
     });
     
-    if (status) {
-      reviews = reviews.filter(r => r.approval_status === status);
+    if (approvalStatus || status) {
+      reviews = reviews.filter(r => r.approval_status === (approvalStatus || status));
     }
     if (productId) {
       reviews = reviews.filter(r => r.product_id === productId);
     }
+    if (search) {
+      const searchLower = search.toLowerCase();
+      reviews = reviews.filter(r => 
+        (r.customer_name?.toLowerCase().includes(searchLower)) ||
+        (r.title?.toLowerCase().includes(searchLower)) ||
+        (r.review_text?.toLowerCase().includes(searchLower)) ||
+        (r.product_id?.toLowerCase().includes(searchLower))
+      );
+    }
+    if (featured !== '') {
+      reviews = reviews.filter(r => String(r.featured).toLowerCase() === String(featured).toLowerCase());
+    }
     
-    // Sort by review_date desc
-    reviews.sort((a, b) => new Date(b.review_date).getTime() - new Date(a.review_date).getTime());
+    // Sort
+    const sortFields = {
+      'review_date': 'review_date',
+      'rating': 'rating',
+      'customer_name': 'customer_name',
+    };
+    
+    const sortField = sortFields[sortBy] || 'review_date';
+    const isDesc = sortOrder === 'desc';
+    
+    reviews.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+      
+      if (sortField === 'rating') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+      }
+      
+      if (sortField === 'review_date') {
+        valA = new Date(valA).getTime() || 0;
+        valB = new Date(valB).getTime() || 0;
+      }
+      
+      if (valA < valB) return isDesc ? 1 : -1;
+      if (valA > valB) return isDesc ? -1 : 1;
+      return 0;
+    });
     
     const total = reviews.length;
     const totalPages = Math.ceil(total / sizeNum);

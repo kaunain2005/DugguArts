@@ -169,37 +169,6 @@ function withSpreadsheetLock(callback, timeoutMs = 30000) {
 }
 
 // =============================================================================
-// IDEMPOTENCY HANDLING
-// =============================================================================
-
-const IDEMPOTENCY_STORE = 'idempotency_store';
-const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
-
-/**
- * Check and store idempotency key
- */
-function checkIdempotency(key) {
-  const cache = CacheService.getScriptCache();
-  const fullKey = `idempotency_${key}`;
-  
-  const existing = cache.get(fullKey);
-  if (existing) {
-    return { isDuplicate: true, result: JSON.parse(existing) };
-  }
-  
-  return { isDuplicate: false };
-}
-
-/**
- * Store idempotency result
- */
-function storeIdempotencyResult(key, result) {
-  const cache = CacheService.getScriptCache();
-  const fullKey = `idempotency_${key}`;
-  cache.put(fullKey, JSON.stringify(result), 24 * 60 * 60); // 24 hours
-}
-
-// =============================================================================
 // ADMIN AUTHORIZATION
 // =============================================================================
 
@@ -339,12 +308,12 @@ const VALIDATION_SCHEMAS = {
   },
   
   inventory_movement: {
-    required: ['materialId', 'movementType', 'quantity'],
+    required: ['material_id', 'movement_type', 'quantity'],
     fields: {
-      materialId: { type: 'string', min: 1 },
-      movementType: { type: 'enum', values: ['in', 'out', 'adjustment'] },
+      material_id: { type: 'string', min: 1 },
+      movement_type: { type: 'enum', values: ['in', 'out', 'adjustment'] },
       quantity: { type: 'number', min: 1 },
-      referenceId: { type: 'string', optional: true },
+      reference_id: { type: 'string', optional: true },
       notes: { type: 'string', optional: true, max: 500 }
     }
   },

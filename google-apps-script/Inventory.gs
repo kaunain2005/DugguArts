@@ -120,7 +120,7 @@ const InventoryHandler = {
       currentStock: Number(m.current_stock) || 0,
       unitCost: Number(m.unit_cost) || 0,
       reorderLevel: Number(m.reorder_level) || 0,
-      updatedAt: m.update_at,
+      updatedAt: m.updated_at,
       isLowStock: Number(m.current_stock) <= Number(m.reorder_level),
       stockValue: (Number(m.current_stock) || 0) * (Number(m.unit_cost) || 0),
     };

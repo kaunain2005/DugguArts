@@ -87,7 +87,8 @@ const DashboardHandler = {
       inventoryData.slice(1).forEach(row => {
         const current = Number(row[stockIndex]) || 0;
         const reorder = Number(row[reorderIndex]) || 0;
-        if (current <= reorder && current > 0) lowStockCount++;
+        // Include items with zero stock when they meet the reorder condition
+        if (current <= reorder) lowStockCount++;
       });
     }
     

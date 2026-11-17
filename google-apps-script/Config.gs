@@ -202,6 +202,13 @@ function generateId(prefix = '') {
 }
 
 /**
+ * Generate a unique request ID for logging
+ */
+function generateRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
  * Get current timestamp in ISO format
  */
 function getCurrentTimestamp() {
@@ -253,29 +260,6 @@ function logAudit(adminEmail, action, entityType, entityId, details = {}) {
   } catch (error) {
     console.error('Audit log failed:', error);
   }
-}
-
-/**
- * Generate a unique ID with prefix
- */
-function generateId(prefix = '') {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 9);
-  return `${prefix}${prefix ? '_' : ''}${timestamp}${random}`.toUpperCase();
-}
-
-/**
- * Get current timestamp in ISO format
- */
-function getCurrentTimestamp() {
-  return new Date().toISOString();
-}
-
-/**
- * Validate API secret from request
- */
-function validateApiSecret(requestSecret) {
-  return requestSecret && requestSecret === API_SECRET;
 }
 
 /**

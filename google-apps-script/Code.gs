@@ -29,7 +29,11 @@ function doPost(e) {
  * Handle OPTIONS (CORS preflight)
  */
 function doOptions(e) {
-  const headers = handleCors(e);
+  const request = {
+    headers: e.headers || {},
+    method: 'OPTIONS'
+  };
+  const headers = handleCors(request);
   return ContentService.createTextOutput('').setHeaders(headers);
 }
 
@@ -46,10 +50,14 @@ function handleRequest(e, method) {
   
   try {
     // Handle CORS
-    const corsHeaders = handleCors(e);
+    const requestForCors = {
+      headers: e.headers || {},
+      method: method
+    };
+    const corsHeaders = handleCors(requestForCors);
     
     // Parse request
-    const requestData = parseRequest(e);
+    const requestData = parseRequest(e, method);
     const { action, payload, secret } = requestData;
     
     // Validate authentication
@@ -83,12 +91,14 @@ function handleRequest(e, method) {
 
 /**
  * Parse incoming request (handles both GET and POST)
+ * @param {Object} e - Apps Script event object
+ * @param {string} method - HTTP method ('GET' or 'POST')
  */
-function parseRequest(e) {
+function parseRequest(e, method) {
   // For GET requests, parameters are in e.parameter
   // For POST requests, payload is in e.postData.contents
   
-  if (e.method === 'GET') {
+  if (method === 'GET') {
     return {
       action: e.parameter.action,
       payload: e.parameter.payload ? JSON.parse(e.parameter.payload) : {},
