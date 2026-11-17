@@ -409,7 +409,83 @@ const ProductsHandler = {
       
       logAudit('system', 'products_bulk_stock_update', 'product', 'multiple', { count: updated });
       
-      return { updated, message: `${updated} products updated` };
+      return { updated, message: `${updated} products updated` });
     });
+  },
+
+  /**
+   * Upload product image to Google Drive and return shareable URL
+   */
+  'products.uploadImage': function(payload, requestId) {
+    const { fileName, mimeType, base64Data, folderName = 'Duggu Arts Products' } = payload;
+    
+    if (!fileName || !mimeType || !base64Data) {
+      throw new Error('fileName, mimeType, and base64Data are required');
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(mimeType)) {
+      throw new Error('Invalid file type. Allowed: JPEG, PNG, WebP, SVG');
+    }
+
+    // Validate file size (max 5MB)
+    const fileSizeBytes = Math.round((base64Data.length * 3) / 4);
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB
+    if (fileSizeBytes > maxSizeBytes) {
+      throw new Error('File size exceeds 5MB limit');
+    }
+
+    return (() => {
+      try {
+        // Get or create the products folder
+        const folders = DriveApp.getFoldersByName(folderName);
+        let folder;
+        if (folders.hasNext()) {
+          folder = folders.next();
+        } else {
+          folder = DriveApp.createFolder(folderName);
+        }
+
+        // Convert base64 to blob
+        const blob = Utilities.newBlob(
+          Utilities.base64Decode(base64Data),
+          mimeType,
+          fileName
+        );
+
+        // Upload to Drive
+        const file = folder.createFile(blob);
+
+        // Make the file publicly viewable (anyone with link can view)
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+        // Get the shareable URL
+        const fileUrl = file.getUrl();
+        
+        // Convert to direct image link format
+        const fileId = file.getId();
+        const directUrl = `https://drive.google.com/uc?id=${fileId}&export=view`;
+
+        logAudit('system', 'product_image_uploaded', 'product_image', fileId, { 
+          fileName, 
+          mimeType, 
+          fileSize: fileSizeBytes 
+        });
+
+        return { 
+          fileId, 
+          fileName, 
+          mimeType, 
+          fileSize: fileSizeBytes,
+          driveUrl: fileUrl,
+          directUrl: directUrl,
+          message: 'Image uploaded successfully'
+        };
+      } catch (error) {
+        console.error('Google Drive upload error:', error);
+        throw new Error(`Failed to upload image to Google Drive: ${error.message}`);
+      }
+    })();
   }
 };

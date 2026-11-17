@@ -1,3 +1,4 @@
+// src/app/admin/dashboard/page.tsx
 import { auth } from "@/auth";
 import { appsScriptService, AdminOrdersResponse, AdminCustomRequest, AdminInventoryMaterial } from "@/services/apps-script.server";
 import { StatCard } from "@/components/admin/StatCard";
