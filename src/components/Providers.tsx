@@ -6,16 +6,18 @@ import { CartProvider } from "@/context/CartContext";
 import { ToastProvider, useToast } from "@/context/ToastContext";
 import { CartToastProvider, useCartToast } from "@/context/CartToastContext";
 import { CartToastContainer } from "@/components/cart/CartToast";
-import { SessionProvider } from "next-auth/react";
+import { AuthProvider } from "@/context/AuthContext";
 
 function CartProviderWrapper({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
   const { addToast: addCartToast } = useCartToast();
   return (
-    <CartProvider onItemAdded={(productName) => {
-      showToast("success", `${productName} added to cart`);
-      addCartToast(productName);
-    }}>
+    <CartProvider
+      onItemAdded={(productName) => {
+        showToast("success", `${productName} added to cart`);
+        addCartToast(productName);
+      }}
+    >
       {children}
     </CartProvider>
   );
@@ -32,16 +34,14 @@ function CartToastProviderWrapper({ children }: { children: ReactNode }) {
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <SessionProvider>
+    <AuthProvider>
       <ThemeProvider>
         <ToastProvider>
           <CartToastProviderWrapper>
-            <CartProviderWrapper>
-              {children}
-            </CartProviderWrapper>
+            <CartProviderWrapper>{children}</CartProviderWrapper>
           </CartToastProviderWrapper>
         </ToastProvider>
       </ThemeProvider>
-    </SessionProvider>
+    </AuthProvider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { 
   Package, 
@@ -134,7 +134,7 @@ function formatCurrency(amount: number): string {
 }
 
 export default function OrdersPage() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,11 +144,11 @@ export default function OrdersPage() {
   const [showOrderDetail, setShowOrderDetail] = useState(false);
 
   const fetchOrders = async () => {
-    if (!session?.user?.email) return;
+    if (!user?.email) return;
     
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/customer/orders?email=${session.user.email}`, {
+      const response = await fetch(`/api/customer/orders`, {
         credentials: "include",
       });
       
@@ -158,7 +158,7 @@ export default function OrdersPage() {
       
       const data = await response.json();
       if (data.success) {
-        setOrders(data.data.orders || []);
+        setOrders(data.data.orders || data.data.items || []);
       } else {
         setError(data.message || "Failed to load orders");
       }
@@ -171,7 +171,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [session]);
+  }, [user]);
 
   const filteredOrders = orders.filter(order => {
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
@@ -187,7 +187,7 @@ export default function OrdersPage() {
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
   };
 
-  if (!session?.user?.email) {
+  if (!user?.email) {
     return (
       <div className="container py-16 lg:py-24">
         <div className="max-w-2xl mx-auto text-center">

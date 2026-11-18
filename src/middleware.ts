@@ -1,81 +1,39 @@
-
-import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import { authConfig, isAdminEmail } from "./auth.config";
-import {
-  edgeAuthLogger,
-  edgeSecurityLogger,
-} from "@/lib/logging/edge";
+import type { NextRequest } from "next/server";
+import { edgeAuthLogger, edgeSecurityLogger } from "@/lib/logging/edge";
 
-const { auth } = NextAuth(authConfig);
-
-export default auth((req) => {
+export function middleware(req: NextRequest) {
   const startTime = Date.now();
   const pathname = req.nextUrl.pathname;
+  const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
 
-  const email = req.auth?.user?.email?.trim().toLowerCase() ?? "";
-  const isLoggedIn = !!email;
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isAdmin = isLoggedIn && isAdminEmail(email);
+  // Edge middleware performs preliminary cookie-presence check only.
+  // Full cryptographic verification and role checks are performed server-side by Firebase Admin SDK.
+  if (pathname.startsWith("/admin")) {
+    const sessionCookie = req.cookies.get("__session")?.value;
 
-  const requestId =
-    req.headers.get("x-request-id") || crypto.randomUUID();
-
-  edgeAuthLogger.debug("Middleware route check", {
-    path: pathname,
-    isLoggedIn,
-    isAdmin,
-    requestId,
-  });
-
-  if (isAdminRoute) {
-    if (!isLoggedIn) {
-      edgeAuthLogger.warn("Unauthenticated admin access attempt", {
+    if (!sessionCookie) {
+      edgeAuthLogger.warn("[Middleware] Unauthenticated admin access attempt (missing session cookie)", {
         path: pathname,
         requestId,
       });
 
-      edgeSecurityLogger.warn("Unauthorized admin access attempt", {
+      edgeSecurityLogger.warn("[Middleware] Unauthorized admin access redirect", {
         path: pathname,
         ip: req.headers.get("x-forwarded-for") || "unknown",
         requestId,
       });
 
-      const callbackUrl = encodeURIComponent(
-        pathname + req.nextUrl.search
-      );
-
-      const response = NextResponse.redirect(
+      const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
+      const redirectResponse = NextResponse.redirect(
         new URL(`/login?callbackUrl=${callbackUrl}`, req.url)
       );
 
-      response.headers.set("X-Request-ID", requestId);
-      return response;
+      redirectResponse.headers.set("X-Request-ID", requestId);
+      return redirectResponse;
     }
 
-    if (!isAdmin) {
-      edgeAuthLogger.warn("Non-admin attempted admin access", {
-        path: pathname,
-        email,
-        requestId,
-      });
-
-      edgeSecurityLogger.warn("Admin access denied", {
-        path: pathname,
-        email,
-        requestId,
-      });
-
-      const response = NextResponse.redirect(
-        new URL("/?error=unauthorized", req.url)
-      );
-
-      response.headers.set("X-Request-ID", requestId);
-      return response;
-    }
-
-    edgeAuthLogger.info("Admin access granted", {
-      email,
+    edgeAuthLogger.debug("[Middleware] Session cookie present for admin route", {
       path: pathname,
       requestId,
     });
@@ -88,7 +46,7 @@ export default auth((req) => {
   response.headers.set("X-Request-ID", requestId);
 
   return response;
-});
+}
 
 export const config = {
   matcher: ["/admin/:path*"],

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
 import { User, LogOut, Bell, Menu, X, ChevronDown, BarChart2, Settings, LayoutDashboard, Package, ShoppingBag, MessageSquare, Users, Package2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -12,16 +12,19 @@ interface AdminHeaderProps {
     name?: string | null;
     email?: string | null;
     image?: string | null;
+    picture?: string | null;
   };
 }
 
 export function AdminHeader({ user }: AdminHeaderProps) {
+  const { signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/login" });
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = "/login";
   };
 
   return (

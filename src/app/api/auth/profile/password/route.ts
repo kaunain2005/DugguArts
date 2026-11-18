@@ -6,7 +6,7 @@ import { nodeAuthLogger } from "@/lib/logging";
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth();
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { currentPassword, newPassword } = body;
 
     if (!currentPassword || !newPassword) {
@@ -30,46 +30,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const apiKey =
+      process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
+      process.env.DUGGU_FIREBASE_API_KEY;
+
+    // Secure reauthentication: verify current password before making sensitive change
+    if (apiKey) {
+      const reauthResponse = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: session.email,
+            password: currentPassword,
+            returnSecureToken: true,
+          }),
+        }
+      );
+
+      if (!reauthResponse.ok) {
+        return NextResponse.json(
+          { success: false, error: { code: "WRONG_PASSWORD", message: "Current password is incorrect" } },
+          { status: 400 }
+        );
+      }
+    }
+
     const adminAuth = getAdminAuth();
     const adminDb = getAdminFirestore();
-
-    const userRecord = await adminAuth.getUser(session.uid);
-    const hasPasswordProvider = userRecord.providerData.some((p: any) => p.providerId === "password");
-
-    if (!hasPasswordProvider) {
-      return NextResponse.json(
-        { success: false, error: { code: "NO_PASSWORD", message: "No password set for this account. Use account linking to set a password." } },
-        { status: 400 }
-      );
-    }
 
     await adminAuth.updateUser(session.uid, {
       password: newPassword,
     });
 
+    // Revoke all existing tokens so other sessions must re-login
     await adminAuth.revokeRefreshTokens(session.uid);
 
-    await adminDb.collection("users").doc(session.uid).update({
-      passwordUpdatedAt: new Date(),
-      updatedAt: new Date(),
-    });
+    await adminDb.collection("users").doc(session.uid).set(
+      {
+        passwordUpdatedAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
 
-    nodeAuthLogger.info("Password changed", { uid: session.uid });
+    nodeAuthLogger.info("[Auth API] Password changed and existing sessions revoked", {
+      uid: session.uid,
+    });
 
     return NextResponse.json({
       success: true,
       message: "Password updated successfully. Please log in again.",
     });
   } catch (error) {
-    nodeAuthLogger.error("Change password error", error);
-    
-    if (error instanceof Error && error.message.includes("INVALID_PASSWORD")) {
-      return NextResponse.json(
-        { success: false, error: { code: "WRONG_PASSWORD", message: "Current password is incorrect" } },
-        { status: 400 }
-      );
-    }
-
+    nodeAuthLogger.error("[Auth API] Change password error", error);
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to change password" } },
       { status: 500 }

@@ -6,56 +6,83 @@ import { nodeAuthLogger } from "@/lib/logging";
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth();
-    const body = await request.json();
-    const { password } = body;
-
-    if (!password) {
-      return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: "Password is required" } },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: "Password must be at least 6 characters" } },
-        { status: 400 }
-      );
-    }
+    const body = await request.json().catch(() => ({}));
+    const { password, linked } = body;
 
     const adminAuth = getAdminAuth();
     const adminDb = getAdminFirestore();
 
     const userRecord = await adminAuth.getUser(session.uid);
-    const hasPasswordProvider = userRecord.providerData.some((p: any) => p.providerId === "password");
+    const existingProviders = userRecord.providerData.map((p) => p.providerId);
+    const hasPassword = existingProviders.includes("password");
 
-    if (hasPasswordProvider) {
+    // Case 1: Password provided directly to server to attach to Google account
+    if (password) {
+      if (typeof password !== "string" || password.length < 6) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Password must be at least 6 characters",
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      await adminAuth.updateUser(session.uid, { password });
+    } else if (!linked && !hasPassword) {
       return NextResponse.json(
-        { success: false, error: { code: "PASSWORD_EXISTS", message: "Account already has a password. Use password change instead." } },
+        {
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Password is required to link credentials",
+          },
+        },
         { status: 400 }
       );
     }
 
-    await adminAuth.updateUser(session.uid, {
-      password: password,
-    });
+    // Refresh provider list after update
+    const updatedUserRecord = await adminAuth.getUser(session.uid);
+    const updatedProviders = Array.from(
+      new Set([
+        ...session.providers,
+        ...updatedUserRecord.providerData.map((p) => p.providerId),
+        "password",
+      ])
+    );
 
-    await adminDb.collection("users").doc(session.uid).update({
-      providers: [...session.providers, "password"],
-      passwordSetAt: new Date(),
-      updatedAt: new Date(),
-    });
+    const now = new Date();
+    await adminDb.collection("users").doc(session.uid).set(
+      {
+        providers: updatedProviders,
+        passwordSetAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
 
-    nodeAuthLogger.info("Password linked to Google account", { uid: session.uid });
+    nodeAuthLogger.info("[Auth API] Password credential linked to account", {
+      uid: session.uid,
+    });
 
     return NextResponse.json({
       success: true,
-      message: "Password linked successfully. You can now log in with email and password.",
+      message: "Password linked successfully. You can now log in with either Google or email and password.",
     });
   } catch (error) {
-    nodeAuthLogger.error("Link password error", error);
+    nodeAuthLogger.error("[Auth API] Link password error", error);
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to link password" } },
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Failed to link password",
+        },
+      },
       { status: 500 }
     );
   }

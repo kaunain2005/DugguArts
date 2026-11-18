@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { 
   Heart, 
@@ -36,7 +36,7 @@ interface WishlistItem {
 }
 
 export default function WishlistPage() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const { itemCount: cartCount } = useCart();
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,11 +44,11 @@ export default function WishlistPage() {
   const [showEmptyState, setShowEmptyState] = useState(false);
 
   const fetchWishlist = async () => {
-    if (!session?.user?.email) return;
+    if (!user?.email) return;
     
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/customer/wishlist?email=${session.user.email}`, {
+      const response = await fetch(`/api/customer/wishlist`, {
         credentials: "include",
       });
       
@@ -58,7 +58,7 @@ export default function WishlistPage() {
       
       const data = await response.json();
       if (data.success) {
-        setWishlist(data.data.wishlist || []);
+        setWishlist(data.data.wishlist || data.data.items || []);
         setShowEmptyState(data.data.wishlist?.length === 0 || false);
       } else {
         setError(data.message || "Failed to load wishlist");
@@ -72,17 +72,17 @@ export default function WishlistPage() {
 
   useEffect(() => {
     fetchWishlist();
-  }, [session]);
+  }, [user]);
 
   const handleRemoveFromWishlist = async (productId: string) => {
-    if (!session?.user?.email) return;
+    if (!user?.email) return;
     
     try {
       const response = await fetch(`/api/customer/wishlist`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email: session.user.email, productId }),
+        body: JSON.stringify({ productId }),
       });
       
       if (!response.ok) {
@@ -112,14 +112,14 @@ export default function WishlistPage() {
   const handleClearWishlist = async () => {
     if (!confirm("Are you sure you want to clear your wishlist?")) return;
     
-    if (!session?.user?.email) return;
+    if (!user?.email) return;
     
     try {
       const response = await fetch(`/api/customer/wishlist/clear`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email: session.user.email }),
+        body: JSON.stringify({}),
       });
       
       if (!response.ok) {
@@ -134,7 +134,7 @@ export default function WishlistPage() {
     }
   };
 
-  if (!session?.user?.email) {
+  if (!user?.email) {
     return (
       <div className="container py-16 lg:py-24">
         <div className="max-w-2xl mx-auto text-center">

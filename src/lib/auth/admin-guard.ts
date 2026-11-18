@@ -1,26 +1,32 @@
-
 import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { isAdminEmail } from "@/auth.config";
+import { requireAdmin, SessionUser } from "@/lib/firebase/auth";
 
 export interface AdminSession {
-  user: {
-    id?: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-    isAdmin?: boolean;
-  };
+  user: SessionUser;
 }
 
 export async function verifyAdminSession(
-  _request: NextRequest
+  _request?: NextRequest
 ): Promise<AdminSession | NextResponse> {
-  const session = await auth();
+  try {
+    const user = await requireAdmin();
+    return { user };
+  } catch (error: any) {
+    if (error?.message === "FORBIDDEN") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Not authorized to access admin panel",
+          },
+        },
+        { status: 403 }
+      );
+    }
 
-  if (!session?.user?.email) {
     return NextResponse.json(
       {
         success: false,
@@ -32,29 +38,6 @@ export async function verifyAdminSession(
       { status: 401 }
     );
   }
-
-  if (!isAdminEmail(session.user.email)) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "FORBIDDEN",
-          message: "Not authorized to access admin panel",
-        },
-      },
-      { status: 403 }
-    );
-  }
-
-  return {
-    user: {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email,
-      image: session.user.image,
-      isAdmin: true,
-    },
-  };
 }
 
 export function createAdminErrorResponse(

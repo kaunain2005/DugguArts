@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { Menu, X, ShoppingBag, Flower2, User, Heart, LogOut, UserCog, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlowerThemeToggle, ThemeSwitcherDropdown } from "@/components/theme/ThemeSwitcher";
@@ -26,17 +26,13 @@ const navLinks = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { itemCount, toggleCart } = useCart();
-  const { data: session, status } = useSession();
+  const { user, isLoading, isAuthenticated, isAdmin, signOut } = useAuth();
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-
-  const isLoading = status === "loading";
-  const isAuthenticated = status === "authenticated";
-  const user = session?.user;
-  const isAdmin = (user as { isAdmin?: boolean } | undefined)?.isAdmin ?? false;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -91,12 +87,13 @@ export function Navbar() {
   }, [isMobileMenuOpen]);
 
   const handleSignIn = () => {
-    signIn("google", { callbackUrl: isAdmin ? "/admin/dashboard" : "/" });
+    router.push("/login");
   };
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/" });
+  const handleSignOut = async () => {
+    await signOut();
     setIsProfileOpen(false);
+    router.push("/");
   };
 
   const getInitials = (name?: string | null, email?: string | null) => {

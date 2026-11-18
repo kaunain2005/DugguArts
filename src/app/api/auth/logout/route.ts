@@ -1,21 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { getSession, clearSessionCookie, revokeRefreshTokens } from "@/lib/firebase/auth";
 import { nodeAuthLogger } from "@/lib/logging";
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    cookieStore.delete("__session");
-    cookieStore.delete("__csrf");
+    const session = await getSession();
 
-    nodeAuthLogger.info("User logged out");
+    if (session?.uid) {
+      try {
+        await revokeRefreshTokens(session.uid);
+      } catch (e) {
+        nodeAuthLogger.warn("[Auth API] Could not revoke refresh tokens on logout", { error: e });
+      }
+    }
+
+    await clearSessionCookie();
+
+    nodeAuthLogger.info("[Auth API] User logged out successfully", {
+      uid: session?.uid,
+    });
 
     return NextResponse.json({
       success: true,
       message: "Logged out successfully",
     });
   } catch (error) {
-    nodeAuthLogger.error("Logout error", error);
+    nodeAuthLogger.error("[Auth API] Logout error", error);
+    await clearSessionCookie();
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "Logout failed" } },
       { status: 500 }
