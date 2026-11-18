@@ -1,0 +1,217 @@
+rules_version = '2';
+
+// ===============================================================
+// Duggu Arts - Cloud Firestore Security Rules
+// ===============================================================
+// Assumed Data Model:
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID)
+// Fields:
+//   - uid: string (immutable, matches Auth UID)
+//   - name: string | null
+//   - email: string (PII - strictly owner/admin access only)
+//   - photoURL: string | null
+//   - role: string ("admin" | "customer")
+//   - providers: list of strings
+//   - emailVerified: bool
+//   - active: bool
+//   - createdAt: timestamp
+//   - updatedAt: timestamp
+//   - lastLoginAt: timestamp
+//
+// Collection: products
+// Document ID: {productId}
+// Fields:
+//   - productId: string
+//   - name: string
+//   - slug: string
+//   - categoryId: string
+//   - price: number
+//   - imageUrl: string
+//   - imagePublicId: string
+//   - galleryUrls: list of strings
+//   - active: bool
+//   - featured: bool
+//   - createdAt: timestamp
+//   - updatedAt: timestamp
+//
+// Collection: categories
+// Document ID: {categoryId}
+// Fields:
+//   - categoryId: string
+//   - name: string
+//   - slug: string
+//   - active: bool
+//   - displayOrder: number
+//
+// Collection: orders
+// Document ID: {orderId}
+// Fields:
+//   - orderId: string
+//   - customerId: string (optional if guest, matches Auth UID if logged in)
+//   - totalAmount: number
+//   - orderStatus: string
+//   - paymentStatus: string
+//   - items: list of maps
+//
+// Collection: reviews
+// Document ID: {reviewId}
+// Fields:
+//   - reviewId: string
+//   - productId: string
+//   - rating: number
+//   - comment: string
+//   - status: string ("pending" | "approved" | "rejected")
+//   - featured: bool
+//
+// Collection: custom_requests
+// Document ID: {requestId}
+// Fields:
+//   - requestId: string
+//   - customerId: string (optional)
+//   - requestStatus: string
+//
+// Collection: inventory
+// Document ID: {inventoryId}
+// Fields:
+//   - inventoryId: string
+//   - materialName: string
+//   - currentStock: number
+//   - reorderLevel: number
+//
+// Collection: settings
+// Document ID: {settingKey}
+// Fields:
+//   - settingKey: string
+//   - value: map
+//
+// Collection: audit_logs
+// Document ID: {logId}
+// Fields:
+//   - logId: string
+//   - adminEmail: string
+//   - action: string
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        (request.auth.token.email != null &&
+         request.auth.token.email_verified == true &&
+         request.auth.token.email in ['vlogauncreator@gmail.com'])
+      );
+    }
+
+    // Default deny for all documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Users Collection (PII Protection - Owner and Admin only)
+    // ===============================================================
+    match /users/{userId} {
+      // User can read their own profile; admins can inspect user accounts
+      allow read: if isOwner(userId) || isAdmin();
+      // Mutations handled via Firebase Admin SDK on Next.js Server
+      allow write: if false;
+    }
+
+    // ===============================================================
+    // Products Collection (Public Catalog)
+    // ===============================================================
+    match /products/{productId} {
+      // Public can read active products; admins can read all
+      allow read: if resource.data.active == true || isAdmin();
+      // Modifications handled server-side via Firebase Admin SDK
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Categories Collection
+    // ===============================================================
+    match /categories/{categoryId} {
+      allow read: if resource.data.active == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Orders Collection
+    // ===============================================================
+    match /orders/{orderId} {
+      // Customers can read their own orders; admins can read all
+      allow read: if isAuthenticated() && (
+        resource.data.customerId == request.auth.uid || isAdmin()
+      );
+      // Order creation and status updates happen exclusively via Next.js Server API
+      // using Admin SDK with transactions and stock verification
+      allow write: if false;
+    }
+
+    // ===============================================================
+    // Reviews Collection
+    // ===============================================================
+    match /reviews/{reviewId} {
+      // Public can only view approved reviews; admins can view pending/rejected
+      allow read: if resource.data.status == 'approved' || isAdmin();
+      // Review submissions and moderation happen via Next.js Route Handlers
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Custom Requests Collection
+    // ===============================================================
+    match /custom_requests/{requestId} {
+      // Customers can read their own custom requests; admins can read all
+      allow read: if isAuthenticated() && (
+        resource.data.customerId == request.auth.uid || isAdmin()
+      );
+      // Managed via server route handlers
+      allow write: if false;
+    }
+
+    // ===============================================================
+    // Inventory & Movements Collection (Admin Only)
+    // ===============================================================
+    match /inventory/{inventoryId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Settings Collection
+    // ===============================================================
+    match /settings/{settingKey} {
+      // Public settings can be read by anyone; private settings admin-only
+      allow read: if settingKey == 'public' || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Audit Logs Collection (Admin Read Only)
+    // ===============================================================
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}
