@@ -1,106 +1,109 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { appsScriptService } from '@/services/apps-script.server';
-import { createSecureErrorResponse } from '@/lib/security';
-
-async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean; response?: NextResponse }> {
-  const session = await auth();
-
-  if (!session?.user?.email) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'UNAUTHORIZED',
-        message: 'Not authenticated',
-      }, 401) 
-    };
-  }
-
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const userEmail = session.user.email?.toLowerCase() || '';
-
-  if (adminEmails.length > 0 && !adminEmails.includes(userEmail)) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'FORBIDDEN',
-        message: 'Not authorized',
-      }, 403) 
-    };
-  }
-
-  return { success: true };
-}
-
-function createOptionsResponse(allowedMethods: string = 'GET, OPTIONS') {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', allowedMethods);
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
-}
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { requireAdmin } from "@/lib/firebase/auth";
+import { nodeAuthLogger } from "@/lib/logging";
+import { getTimestampISO } from "@/lib/firebase/firestore-helpers";
 
 export async function GET(request: NextRequest) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get('pageSize') || '20')));
-    const search = searchParams.get('search') || '';
-    const productId = searchParams.get('productId') || '';
-    const approvalStatus = searchParams.get('approvalStatus') || '';
-    const featured = searchParams.get('featured');
-    const sortBy = searchParams.get('sortBy') || 'reviewDate';
-    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    await requireAdmin();
 
-    const result = await appsScriptService.adminRequest<{ items: any[]; total: number; page: number; pageSize: number; totalPages: number }>('reviews.list', {
-      page,
-      pageSize,
-      search,
-      productId,
-      approvalStatus,
-      featured: featured === 'true',
-      sortBy,
-      sortOrder,
+    const adminDb = getAdminFirestore();
+    const searchParams = request.nextUrl.searchParams;
+    
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get("pageSize") || "20")));
+    const status = searchParams.get("status") || "";
+    const productId = searchParams.get("productId") || "";
+    const search = searchParams.get("search") || "";
+    const featured = searchParams.get("featured");
+    const sortBy = searchParams.get("sortBy") || "reviewDate";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+
+    let query = adminDb.collection("reviews") as any;
+
+    if (status) {
+      query = query.where("status", "==", status);
+    }
+    if (productId) {
+      query = query.where("productId", "==", productId);
+    }
+    if (featured !== "") {
+      query = query.where("featured", "==", featured === "true");
+    }
+
+    const validSortFields = ["reviewDate", "rating", "customerName"];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : "reviewDate";
+    const isDesc = sortOrder === "desc";
+    query = query.orderBy(sortField, isDesc ? "desc" : "asc");
+
+    const offset = (page - 1) * pageSize;
+    query = query.limit(pageSize).offset(offset);
+
+    const snapshot = await query.get();
+    let reviews = snapshot.docs.map((doc: any) => {
+      const data = doc.data() as Record<string, unknown>;
+      return {
+        id: doc.id,
+        ...data,
+        reviewDate: getTimestampISO(data, "reviewDate"),
+        createdAt: getTimestampISO(data, "createdAt"),
+        updatedAt: getTimestampISO(data, "updatedAt"),
+      };
     });
 
-    const duration = Date.now() - startTime;
-    console.log(`[GET /api/admin/reviews] Completed in ${duration}ms`);
+    if (search) {
+      const searchLower = search.toLowerCase();
+      reviews = reviews.filter((r: any) =>
+        r.customerName?.toLowerCase().includes(searchLower) ||
+        r.title?.toLowerCase().includes(searchLower) ||
+        r.reviewText?.toLowerCase().includes(searchLower) ||
+        r.productId?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    let countQuery = adminDb.collection("reviews") as any;
+    if (status) {
+      countQuery = countQuery.where("status", "==", status);
+    }
+    if (productId) {
+      countQuery = countQuery.where("productId", "==", productId);
+    }
+    if (featured !== "") {
+      countQuery = countQuery.where("featured", "==", featured === "true");
+    }
+
+    const countSnapshot = await countQuery.get();
+    const total = countSnapshot.size;
+    const totalPages = Math.ceil(total / pageSize);
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'Reviews retrieved successfully',
+      data: {
+        items: reviews,
+        total,
+        page,
+        pageSize,
+        totalPages,
+      },
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Get reviews error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to fetch reviews',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch reviews" } },
       { status: 500 }
     );
   }
 }
 
 export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": process.env.SITE_URL || "http://localhost:3000",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }

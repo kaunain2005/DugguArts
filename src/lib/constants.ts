@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  name: "Duggu Arts",
+  name: process.env.BUSINESS_NAME || "Duggu Arts",
   description: "Handmade pipe-cleaner flowers crafted with love",
   url: process.env.SITE_URL || "http://localhost:3000",
   defaultTheme: "white" as const,
@@ -7,21 +7,32 @@ export const APP_CONFIG = {
 };
 
 export const WHATSAPP_CONFIG = {
-  businessNumber: process.env.WHATSAPP_BUSINESS_NUMBER || "",
+  businessNumber: process.env.WHATSAPP_BUSINESS_NUMBER || "917499315928",
   // Format: 91XXXXXXXXXX (country code + number without + or spaces)
 };
 
-export const GOOGLE_SHEETS_CONFIG = {
-  sheetId: process.env.GOOGLE_SHEET_ID || "",
-  appsScriptUrl: process.env.GOOGLE_APPS_SCRIPT_URL || "",
-  appsScriptSecret: process.env.GOOGLE_APPS_SCRIPT_SECRET || "",
+export const FIREBASE_CLIENT_CONFIG = {
+  apiKey: process.env.DUGGU_FIREBASE_API_KEY || "",
+  authDomain: process.env.DUGGU_FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.DUGGU_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.DUGGU_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.DUGGU_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.DUGGU_FIREBASE_APP_ID || "",
+  measurementId: process.env.DUGGU_FIREBASE_MEASUREMENT_ID || "",
 };
 
 export const AUTH_CONFIG = {
   secret: process.env.AUTH_SECRET || "",
-  googleId: process.env.AUTH_GOOGLE_ID || "",
-  googleSecret: process.env.AUTH_GOOGLE_SECRET || "",
-  adminEmails: (process.env.ADMIN_EMAILS || "").split(",").filter(Boolean),
+  googleClientId: process.env.DUGGU_GOOGLE_CLIENT_ID || "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+  adminEmails: (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean),
+};
+
+export const CLOUDINARY_CONFIG = {
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+  apiKey: process.env.CLOUDINARY_API_KEY || "",
+  apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+  uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || "duggu-arts-signed",
 };
 
 export const CART_CONFIG = {

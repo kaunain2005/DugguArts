@@ -1,88 +1,67 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { appsScriptService } from '@/services/apps-script.server';
-import { orderUpdateSchema } from '@/lib/validations';
-import { createSecureErrorResponse } from '@/lib/security';
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { requireAdmin } from "@/lib/firebase/auth";
+import { nodeAuthLogger } from "@/lib/logging";
+import { getTimestampISO } from "@/lib/firebase/firestore-helpers";
 
-async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean; response?: NextResponse }> {
-  const session = await auth();
+const VALID_ORDER_STATUSES = [
+  "new", "contacted", "confirmed", "in_production", "ready", 
+  "dispatched", "delivered", "completed", "cancelled"
+];
 
-  if (!session?.user?.email) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'UNAUTHORIZED',
-        message: 'Not authenticated',
-      }, 401) 
-    };
-  }
-
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const userEmail = session.user.email?.toLowerCase() || '';
-
-  if (adminEmails.length > 0 && !adminEmails.includes(userEmail)) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'FORBIDDEN',
-        message: 'Not authorized',
-      }, 403) 
-    };
-  }
-
-  return { success: true };
-}
-
-function createOptionsResponse() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PATCH, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
-}
+const VALID_PAYMENT_STATUSES = [
+  "unpaid", "advance_received", "partially_paid", "paid", "refunded"
+];
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const { id } = await params;
-    const order = await appsScriptService.adminRequest<any>('orders.get', { orderId: id });
+    await requireAdmin();
 
-    if (!order) {
+    const { id } = await params;
+    const adminDb = getAdminFirestore();
+
+    const orderDoc = await adminDb.collection("orders").doc(id).get();
+
+    if (!orderDoc.exists) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } },
+        { success: false, error: { code: "NOT_FOUND", message: "Order not found" } },
         { status: 404 }
       );
     }
 
-    const duration = Date.now() - startTime;
-    console.log(`[GET /api/admin/orders/${id}] Completed in ${Date.now() - startTime}ms`);
+    const data = orderDoc.data() as Record<string, unknown>;
+    const order = {
+      id: orderDoc.id,
+      ...data,
+      createdAt: getTimestampISO(data, "createdAt"),
+      updatedAt: getTimestampISO(data, "updatedAt"),
+    };
+
+    const itemsSnapshot = await adminDb
+      .collection("order_items")
+      .where("orderId", "==", id)
+      .get();
+
+    const items = itemsSnapshot.docs.map((doc: any) => {
+      const data = doc.data() as Record<string, unknown>;
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: getTimestampISO(data, "createdAt"),
+      };
+    });
 
     return NextResponse.json({
       success: true,
-      data: order,
-      message: 'Order retrieved successfully',
+      data: { ...order, items },
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Get order error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to fetch order',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch order" } },
       { status: 500 }
     );
   }
@@ -92,68 +71,89 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
+    await requireAdmin();
+
     const { id } = await params;
     const body = await request.json();
+    const adminDb = getAdminFirestore();
 
-    // Validate with Zod
-    const validationResult = orderUpdateSchema.safeParse(body);
-    if (!validationResult.success) {
+    const orderDoc = await adminDb.collection("orders").doc(id).get();
+
+    if (!orderDoc.exists) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid order data',
-            details: validationResult.error.flatten().fieldErrors,
-          },
-        },
+        { success: false, error: { code: "NOT_FOUND", message: "Order not found" } },
+        { status: 404 }
+      );
+    }
+
+    const { orderStatus, paymentStatus, internalNotes } = body;
+
+    if (!orderStatus && !paymentStatus && internalNotes === undefined) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "At least one field to update is required" } },
         { status: 400 }
       );
     }
 
-    // Call Apps Script to update order
-    const result = await appsScriptService.adminRequest('orders.update', {
-      orderId: id,
-      ...validationResult.data,
-    });
+    if (orderStatus && !VALID_ORDER_STATUSES.includes(orderStatus)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: `Invalid order status: ${orderStatus}` } },
+        { status: 400 }
+      );
+    }
 
-    const duration = Date.now() - startTime;
-    console.log(`[PATCH /api/admin/orders/${id}] Completed in ${duration}ms`);
+    if (paymentStatus && !VALID_PAYMENT_STATUSES.includes(paymentStatus)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: `Invalid payment status: ${paymentStatus}` } },
+        { status: 400 }
+      );
+    }
+
+    const updates: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (orderStatus) updates.orderStatus = orderStatus;
+    if (paymentStatus) updates.paymentStatus = paymentStatus;
+    if (internalNotes !== undefined) updates.internalNotes = internalNotes;
+
+    await adminDb.collection("orders").doc(id).update(updates);
+
+    const session = await import("@/lib/firebase/auth").then(m => m.getSession());
+    if (session) {
+      await getAdminFirestore().collection("audit_logs").add({
+        logId: `LOG_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`.toUpperCase(),
+        adminEmail: session?.email,
+        action: "order_updated",
+        entityType: "order",
+        entityId: id,
+        details: { orderStatus, paymentStatus, hasNotes: !!internalNotes },
+        createdAt: new Date(),
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'Order updated successfully',
+      message: "Order updated successfully",
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Update order error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to update order',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to update order" } },
       { status: 500 }
     );
   }
 }
 
 export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PATCH, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": process.env.SITE_URL || "http://localhost:3000",
+      "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }

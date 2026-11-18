@@ -1,88 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { appsScriptService } from '@/services/apps-script.server';
-import { reviewModerationSchema } from '@/lib/validations';
-import { createSecureErrorResponse } from '@/lib/security';
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { requireAdmin } from "@/lib/firebase/auth";
+import { nodeAuthLogger } from "@/lib/logging";
+import { getTimestampISO } from "@/lib/firebase/firestore-helpers";
 
-async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean; response?: NextResponse }> {
-  const session = await auth();
-
-  if (!session?.user?.email) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'UNAUTHORIZED',
-        message: 'Not authenticated',
-      }, 401) 
-    };
-  }
-
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const userEmail = session.user.email?.toLowerCase() || '';
-
-  if (adminEmails.length > 0 && !adminEmails.includes(userEmail)) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'FORBIDDEN',
-        message: 'Not authorized',
-      }, 403) 
-    };
-  }
-
-  return { success: true };
-}
-
-function createOptionsResponse(allowedMethods: string = 'GET, PATCH, DELETE, OPTIONS') {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', allowedMethods);
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
-}
+const VALID_APPROVAL_STATUSES = ["pending", "approved", "rejected"];
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const { id } = await params;
-    const review = await appsScriptService.adminRequest<any>('reviews.get', { reviewId: id });
+    await requireAdmin();
 
-    if (!review) {
+    const { id } = await params;
+    const adminDb = getAdminFirestore();
+
+    const reviewDoc = await adminDb.collection("reviews").doc(id).get();
+
+    if (!reviewDoc.exists) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Review not found' } },
+        { success: false, error: { code: "NOT_FOUND", message: "Review not found" } },
         { status: 404 }
       );
     }
 
-    const duration = Date.now() - startTime;
-    console.log(`[GET /api/admin/reviews/${id}] Completed in ${duration}ms`);
+    const data = reviewDoc.data() as Record<string, unknown>;
+    const review = {
+      id: reviewDoc.id,
+      ...data,
+      reviewDate: getTimestampISO(data, "reviewDate"),
+      createdAt: getTimestampISO(data, "createdAt"),
+      updatedAt: getTimestampISO(data, "updatedAt"),
+    };
 
     return NextResponse.json({
       success: true,
       data: review,
-      message: 'Review retrieved successfully',
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Get review error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to fetch review',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch review" } },
       { status: 500 }
     );
   }
@@ -92,110 +51,79 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
+    await requireAdmin();
+
     const { id } = await params;
     const body = await request.json();
+    const adminDb = getAdminFirestore();
 
-    // Validate with Zod
-    const validationResult = reviewModerationSchema.safeParse(body);
-    if (!validationResult.success) {
+    const reviewDoc = await adminDb.collection("reviews").doc(id).get();
+
+    if (!reviewDoc.exists) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid review data',
-            details: validationResult.error.flatten().fieldErrors,
-          },
-        },
+        { success: false, error: { code: "NOT_FOUND", message: "Review not found" } },
+        { status: 404 }
+      );
+    }
+
+    const { approvalStatus, featured } = body;
+
+    if (!approvalStatus && featured === undefined) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "At least approvalStatus or featured is required" } },
         { status: 400 }
       );
     }
 
-    // Call Apps Script to update review
-    const result = await appsScriptService.adminRequest('reviews.update', {
-      reviewId: id,
-      ...validationResult.data,
-    });
+    if (approvalStatus && !["pending", "approved", "rejected"].includes(approvalStatus)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: `Invalid approval status: ${approvalStatus}` } },
+        { status: 400 }
+      );
+    }
 
-    const duration = Date.now() - startTime;
-    console.log(`[PATCH /api/admin/reviews/${id}] Completed in ${duration}ms`);
+    const updates: Record<string, unknown> = {};
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-      message: 'Review updated successfully',
-    });
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
+    if (approvalStatus) updates.status = approvalStatus;
+    if (featured !== undefined) updates.featured = Boolean(featured);
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to update review',
-        },
-      },
-      { status: 500 }
-    );
-  }
-}
+    await adminDb.collection("reviews").doc(id).update(updates);
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
-  try {
-    const { id } = await params;
-
-    // Call Apps Script to delete review
-    const result = await appsScriptService.adminRequest('reviews.delete', {
-      reviewId: id,
-    });
-
-    const duration = Date.now() - startTime;
-    console.log(`[DELETE /api/admin/reviews/${id}] Completed in ${duration}ms`);
+    const session = await import("@/lib/firebase/auth").then(m => m.getSession());
+    if (session) {
+      await getAdminFirestore().collection("audit_logs").add({
+        logId: `LOG_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`.toUpperCase(),
+        adminEmail: session?.email,
+        action: "review_moderated",
+        entityType: "review",
+        entityId: id,
+        details: { approvalStatus, featured },
+        createdAt: new Date(),
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'Review deleted successfully',
+      message: "Review moderated successfully",
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Moderate review error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to delete review',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to moderate review" } },
       { status: 500 }
     );
   }
 }
 
 export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PATCH, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": process.env.SITE_URL || "http://localhost:3000",
+      "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }

@@ -1,9 +1,7 @@
-
 /**
- * Edge-safe logging entry point.
- *
- * Do not export Node.js logger implementations from here.
- * Node.js modules must import directly from ./node.
+ * Logging entry point.
+ * 
+ * Exports both Edge and Node.js loggers for different runtime contexts.
  */
 
 export {
@@ -17,6 +15,19 @@ export {
   getClientInfo as getEdgeClientInfo,
   generateRequestId,
 } from "./edge";
+
+export {
+  NodeLogger,
+  nodeAuthLogger,
+  nodeApiLogger,
+  nodeSecurityLogger,
+  nodeErrorLogger,
+  nodePerformanceLogger,
+  nodeGeneralLogger,
+  withNodeLogging,
+  logApiAction,
+  getClientInfo,
+} from "./node";
 
 export type {
   LogLevel,

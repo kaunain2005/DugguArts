@@ -1,141 +1,131 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { appsScriptService } from '@/services/apps-script.server';
-import { settingsSchema } from '@/lib/validations';
-import { createSecureErrorResponse } from '@/lib/security';
-
-async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean; response?: NextResponse }> {
-  const session = await auth();
-
-  if (!session?.user?.email) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'UNAUTHORIZED',
-        message: 'Not authenticated',
-      }, 401) 
-    };
-  }
-
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const userEmail = session.user.email?.toLowerCase() || '';
-
-  if (adminEmails.length > 0 && !adminEmails.includes(userEmail)) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'FORBIDDEN',
-        message: 'Not authorized',
-      }, 403) 
-    };
-  }
-
-  return { success: true };
-}
-
-function createOptionsResponse(allowedMethods: string = 'GET, PATCH, OPTIONS') {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', allowedMethods);
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
-}
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { requireAdmin } from "@/lib/firebase/auth";
+import { nodeAuthLogger } from "@/lib/logging";
+import { getTimestampISO } from "@/lib/firebase/firestore-helpers";
 
 export async function GET(request: NextRequest) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const settings = await appsScriptService.getPublicSettings();
+    await requireAdmin();
 
-    const duration = Date.now() - startTime;
-    console.log(`[GET /api/admin/settings] Completed in ${duration}ms`);
+    const adminDb = getAdminFirestore();
+    const sheet = adminDb.collection("settings");
+    const data = await sheet.get();
+
+    const settings: Record<string, { value: any; description: string }> = {};
+
+    if (!data.empty) {
+      data.docs.forEach((doc: any) => {
+        settings[doc.id] = {
+          value: doc.data().value,
+          description: doc.data().description || "",
+        };
+      });
+    }
+
+    const defaultSettings = {
+      businessName: "Duggu Arts",
+      whatsappNumber: "91XXXXXXXXXX",
+      instagramUrl: "https://instagram.com/dugguarts",
+      contactEmail: "hello@dugguarts.com",
+      announcementText: "Free delivery on orders above ₹999!",
+      packagingCharge: 50,
+      deliveryCharge: 100,
+      freeDeliveryThreshold: 999,
+      currency: "INR",
+      timezone: "Asia/Kolkata",
+    };
+
+    const allSettings: Record<string, { value: any; description: string }> = {};
+    Object.keys(defaultSettings).forEach((key) => {
+      allSettings[key] = {
+        value: settings[key]?.value ?? defaultSettings[key as keyof typeof defaultSettings],
+        description: settings[key]?.description ?? `Default setting for ${key}`,
+      };
+    });
 
     return NextResponse.json({
       success: true,
-      data: settings,
-      message: 'Settings retrieved successfully',
+      data: allSettings,
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Get settings error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to fetch settings',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch settings" } },
       { status: 500 }
     );
   }
 }
 
 export async function PATCH(request: NextRequest) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const body = await request.json();
+    await requireAdmin();
 
-    // Validate with Zod
-    const validationResult = settingsSchema.safeParse(body);
-    if (!validationResult.success) {
+    const body = await request.json();
+    const { settings } = body;
+
+    if (!settings || typeof settings !== "object") {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid settings data',
-            details: validationResult.error.flatten().fieldErrors,
-          },
-        },
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Settings object is required" } },
         { status: 400 }
       );
     }
 
-    // Call Apps Script to update settings
-    const result = await appsScriptService.adminRequest('settings.update', validationResult.data);
+    const adminDb = getAdminFirestore();
+    const now = new Date();
+    let updated = 0;
 
-    const duration = Date.now() - startTime;
-    console.log(`[PATCH /api/admin/settings] Completed in ${duration}ms`);
+    const batch = adminDb.batch();
+
+    Object.entries(settings).forEach(([key, value]) => {
+      const stringValue = typeof value === "object" ? JSON.stringify(value) : String(value);
+      
+      const docRef = adminDb.collection("settings").doc(key);
+      batch.set(docRef, {
+        value: stringValue,
+        description: `Updated via admin on ${now}`,
+        updatedAt: now,
+      });
+      updated++;
+    });
+
+    await batch.commit();
+
+    const session = await import("@/lib/firebase/auth").then(m => m.getSession());
+    if (session) {
+      await adminDb.collection("audit_logs").add({
+        logId: `LOG_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`.toUpperCase(),
+        adminEmail: session?.email,
+        action: "settings_updated",
+        entityType: "settings",
+        entityId: "multiple",
+        details: { updatedCount: updated },
+        createdAt: now,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'Settings updated successfully',
+      data: { updated },
+      message: `${updated} settings updated successfully`,
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Update settings error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to update settings',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to update settings" } },
       { status: 500 }
     );
   }
 }
 
 export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PATCH, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": process.env.SITE_URL || "http://localhost:3000",
+      "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }

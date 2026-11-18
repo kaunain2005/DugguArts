@@ -117,24 +117,24 @@ export class NodeLogger {
     };
   }
 
-  debug(message: string, metadata?: Record<string, unknown>, request?: NextRequest): void {
-    this.writeLog(this.createEntry("debug", message, metadata, request));
+  debug(message: string, metadata?: unknown, request?: NextRequest): void {
+    this.writeLog(this.createEntry("debug", message, metadata as Record<string, unknown> | undefined, request));
   }
 
-  info(message: string, metadata?: Record<string, unknown>, request?: NextRequest): void {
-    this.writeLog(this.createEntry("info", message, metadata, request));
+  info(message: string, metadata?: unknown, request?: NextRequest): void {
+    this.writeLog(this.createEntry("info", message, metadata as Record<string, unknown> | undefined, request));
   }
 
-  warn(message: string, metadata?: Record<string, unknown>, request?: NextRequest): void {
-    this.writeLog(this.createEntry("warn", message, metadata, request));
+  warn(message: string, metadata?: unknown, request?: NextRequest): void {
+    this.writeLog(this.createEntry("warn", message, metadata as Record<string, unknown> | undefined, request));
   }
 
-  error(message: string, metadata?: Record<string, unknown>, request?: NextRequest): void {
-    this.writeLog(this.createEntry("error", message, metadata, request));
+  error(message: string, metadata?: unknown, request?: NextRequest): void {
+    this.writeLog(this.createEntry("error", message, metadata as Record<string, unknown> | undefined, request));
   }
 
-  fatal(message: string, metadata?: Record<string, unknown>, request?: NextRequest): void {
-    this.writeLog(this.createEntry("fatal", message, metadata, request));
+  fatal(message: string, metadata?: unknown, request?: NextRequest): void {
+    this.writeLog(this.createEntry("fatal", message, metadata as Record<string, unknown> | undefined, request));
   }
 
   logRequest(

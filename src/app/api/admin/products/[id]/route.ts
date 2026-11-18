@@ -1,90 +1,44 @@
-// src/app/api/admin/products/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { appsScriptService } from '@/services/apps-script.server';
-import { productSchema } from '@/lib/validations';
-import { createSecureErrorResponse } from '@/lib/security';
-
-// Admin-only authorization check
-async function verifyAdminAuth(request: NextRequest): Promise<{ success: boolean; response?: NextResponse }> {
-  const session = await auth();
-
-  if (!session?.user?.email) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'UNAUTHORIZED',
-        message: 'Not authenticated',
-      }, 401) 
-    };
-  }
-
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const userEmail = session.user.email?.toLowerCase() || '';
-
-  if (adminEmails.length > 0 && !adminEmails.includes(userEmail)) {
-    return { 
-      success: false, 
-      response: createSecureErrorResponse({
-        code: 'FORBIDDEN',
-        message: 'Not authorized',
-      }, 403) 
-    };
-  }
-
-  return { success: true };
-}
-
-function createOptionsResponse() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PATCH, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
-}
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { requireAdmin } from "@/lib/firebase/auth";
+import { nodeAuthLogger } from "@/lib/logging";
+import { getTimestampISO } from "@/lib/firebase/firestore-helpers";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const { id } = await params;
-    const product = await appsScriptService.getProduct({ id });
+    await requireAdmin();
 
-    if (!product) {
+    const { id } = await params;
+    const adminDb = getAdminFirestore();
+
+    const productDoc = await adminDb.collection("products").doc(id).get();
+
+    if (!productDoc.exists) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Product not found' } },
+        { success: false, error: { code: "NOT_FOUND", message: "Product not found" } },
         { status: 404 }
       );
     }
 
-    const duration = Date.now() - startTime;
-    console.log(`[GET /api/admin/products/${id}] Completed in ${duration}ms`);
+    const data = productDoc.data() as Record<string, unknown>;
+    const product = {
+      id: productDoc.id,
+      ...data,
+      createdAt: getTimestampISO(data, "createdAt"),
+      updatedAt: getTimestampISO(data, "updatedAt"),
+    };
 
     return NextResponse.json({
       success: true,
       data: product,
-      message: 'Product retrieved successfully',
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Get product error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to fetch product',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch product" } },
       { status: 500 }
     );
   }
@@ -94,66 +48,96 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
+    await requireAdmin();
+
     const { id } = await params;
     const body = await request.json();
+    const adminDb = getAdminFirestore();
 
-    // Partial validation - only validate provided fields
-    const allowedFields = [
-      'name', 'slug', 'category_id', 'description', 'price',
-      'image_url', 'gallery_urls', 'colours', 'stock_status',
-      'featured', 'active'
-    ];
+    const productDoc = await adminDb.collection("products").doc(id).get();
 
-    const updates: Record<string, any> = {};
-    for (const key of allowedFields) {
-      if (body[key] !== undefined) {
-        updates[key] = body[key];
-      }
+    if (!productDoc.exists) {
+      return NextResponse.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Product not found" } },
+        { status: 404 }
+      );
     }
 
-    // If slug is being updated, validate it
-    if (updates.slug) {
-      const slugValidation = productSchema.shape.slug.safeParse(updates.slug);
-      if (!slugValidation.success) {
+    if (body.slug && !/^[a-z0-9-]+$/.test(body.slug)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Slug can only contain lowercase letters, numbers, and hyphens" } },
+        { status: 400 }
+      );
+    }
+
+    if (body.slug && body.slug !== (productDoc.data() as Record<string, unknown>)?.slug) {
+      const existingSlug = await adminDb.collection("products").where("slug", "==", body.slug).limit(1).get();
+      if (!existingSlug.empty) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid slug format' } },
-          { status: 400 }
+          { success: false, error: { code: "SLUG_EXISTS", message: "Product with this slug already exists" } },
+          { status: 409 }
         );
       }
     }
 
-    // Call Apps Script to update product
-    const result = await appsScriptService.adminRequest('products.update', {
-      productId: id,
-      ...updates,
-    });
+    if (body.categoryId) {
+      const categoryDoc = await adminDb.collection("categories").doc(body.categoryId).get();
+      if (!categoryDoc.exists) {
+        return NextResponse.json(
+          { success: false, error: { code: "CATEGORY_NOT_FOUND", message: "Category not found" } },
+          { status: 404 }
+        );
+      }
+    }
 
-    const duration = Date.now() - startTime;
-    console.log(`[PATCH /api/admin/products/${id}] Completed in ${duration}ms`);
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    const allowedFields = [
+      "name", "slug", "categoryId", "description", "price",
+      "imageUrl", "imagePublicId", "galleryUrls", "galleryPublicIds",
+      "colours", "stockStatus", "featured", "active"
+    ];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        if (field === "colours" && typeof body[field] === "string") {
+          updateData[field] = body[field].split(",").map((c: string) => c.trim()).filter(Boolean);
+        } else if (field === "price") {
+          updateData[field] = Number(body[field]);
+        } else if (field === "featured" || field === "active") {
+          updateData[field] = Boolean(body[field]);
+        } else {
+          updateData[field] = body[field];
+        }
+      }
+    }
+
+    await adminDb.collection("products").doc(id).update(updateData);
+
+    const session = await import("@/lib/firebase/auth").then(m => m.getSession());
+    if (session) {
+      await getAdminFirestore().collection("audit_logs").add({
+        logId: `LOG_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`.toUpperCase(),
+        adminEmail: session?.email,
+        action: "product_updated",
+        entityType: "product",
+        entityId: id,
+        details: { updates: Object.keys(updateData) },
+        createdAt: new Date(),
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'Product updated successfully',
+      message: "Product updated successfully",
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Update product error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to update product',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to update product" } },
       { status: 500 }
     );
   }
@@ -163,50 +147,60 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await verifyAdminAuth(request);
-  if (!authResult.success) return authResult.response!;
-
-  const startTime = Date.now();
-
   try {
-    const { id } = await params;
+    await requireAdmin();
 
-    // Call Apps Script to archive product
-    const result = await appsScriptService.adminRequest('products.archive', {
-      productId: id,
+    const { id } = await params;
+    const adminDb = getAdminFirestore();
+
+    const productDoc = await adminDb.collection("products").doc(id).get();
+
+    if (!productDoc.exists) {
+      return NextResponse.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Product not found" } },
+        { status: 404 }
+      );
+    }
+
+    await adminDb.collection("products").doc(id).update({
+      active: false,
+      updatedAt: new Date(),
     });
 
-    const duration = Date.now() - startTime;
-    console.log(`[DELETE /api/admin/products/${id}] Completed in ${duration}ms`);
+    const session = await import("@/lib/firebase/auth").then(m => m.getSession());
+    if (session) {
+      await getAdminFirestore().collection("audit_logs").add({
+        logId: `LOG_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 9)}`.toUpperCase(),
+        adminEmail: session?.email,
+        action: "product_archived",
+        entityType: "product",
+        entityId: id,
+        details: {},
+        createdAt: new Date(),
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      data: result,
-      message: 'Product archived successfully',
+      message: "Product archived successfully",
     });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`API error after ${duration}ms:`, error);
-
+    nodeAuthLogger.error("Delete product error", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to archive product',
-        },
-      },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to archive product" } },
       { status: 500 }
     );
   }
 }
 
 export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 204 });
-  response.headers.set('Access-Control-Allow-Origin', process.env.SITE_URL || 'http://localhost:3000');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PATCH, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-csrf-token');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": process.env.SITE_URL || "http://localhost:3000",
+      "Access-Control-Allow-Methods": "GET, PATCH, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }

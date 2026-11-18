@@ -3,7 +3,7 @@
  * This runs in the browser and calls Next.js API routes (which proxy to Apps Script)
  */
 
-const APPS_SCRIPT_BASE_URL = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL || '/api/apps-script';
+const APPS_SCRIPT_BASE_URL = process.env.SITE_URL ? `${process.env.SITE_URL}/api/apps-script` : '/api/apps-script';
 
 interface RequestOptions {
   action: string;

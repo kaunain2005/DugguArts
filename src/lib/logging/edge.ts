@@ -87,24 +87,24 @@ export class EdgeLogger {
     }
   }
 
-  debug(message: string, metadata?: Record<string, unknown>, request?: RequestLike): void {
-    this.log("debug", message, metadata, request);
+  debug(message: string, metadata?: unknown, request?: RequestLike): void {
+    this.log("debug", message, metadata as Record<string, unknown> | undefined, request);
   }
 
-  info(message: string, metadata?: Record<string, unknown>, request?: RequestLike): void {
-    this.log("info", message, metadata, request);
+  info(message: string, metadata?: unknown, request?: RequestLike): void {
+    this.log("info", message, metadata as Record<string, unknown> | undefined, request);
   }
 
-  warn(message: string, metadata?: Record<string, unknown>, request?: RequestLike): void {
-    this.log("warn", message, metadata, request);
+  warn(message: string, metadata?: unknown, request?: RequestLike): void {
+    this.log("warn", message, metadata as Record<string, unknown> | undefined, request);
   }
 
-  error(message: string, metadata?: Record<string, unknown>, request?: RequestLike): void {
-    this.log("error", message, metadata, request);
+  error(message: string, metadata?: unknown, request?: RequestLike): void {
+    this.log("error", message, metadata as Record<string, unknown> | undefined, request);
   }
 
-  fatal(message: string, metadata?: Record<string, unknown>, request?: RequestLike): void {
-    this.log("fatal", message, metadata, request);
+  fatal(message: string, metadata?: unknown, request?: RequestLike): void {
+    this.log("fatal", message, metadata as Record<string, unknown> | undefined, request);
   }
 
   logRequest(
